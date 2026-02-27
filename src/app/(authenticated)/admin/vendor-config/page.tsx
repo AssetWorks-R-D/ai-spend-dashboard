@@ -107,7 +107,11 @@ export default function VendorConfigPage() {
     try {
       const res = await fetch(`/api/vendor-config/${vendor}`, { method: "POST" });
       const json = await res.json();
-      setTestResults((r) => ({ ...r, [vendor]: json.data?.success ?? false }));
+      if (json.data?.success) {
+        setTestResults((r) => ({ ...r, [vendor]: true }));
+      } else {
+        setTestResults((r) => ({ ...r, [vendor]: json.data?.message || json.error?.message || false }));
+      }
     } catch {
       setTestResults((r) => ({ ...r, [vendor]: false }));
     } finally {
@@ -255,8 +259,8 @@ export default function VendorConfigPage() {
                     </div>
                   )}
                   {testResults[vendor] !== undefined && testResults[vendor] !== null && (
-                    <p className={`text-sm ${testResults[vendor] ? "text-green-600" : "text-destructive"}`}>
-                      {testResults[vendor] ? "Connection successful" : "Connection failed"}
+                    <p className={`text-sm ${testResults[vendor] === true ? "text-green-600" : "text-destructive"}`}>
+                      {testResults[vendor] === true ? "Connection successful" : typeof testResults[vendor] === "string" ? testResults[vendor] : "Connection failed"}
                     </p>
                   )}
                   {syncResults[vendor] && (

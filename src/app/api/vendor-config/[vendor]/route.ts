@@ -186,7 +186,9 @@ export async function POST(
       credentials,
     });
     return Response.json({ data: { success } });
-  } catch {
-    return Response.json({ data: { success: false, message: "Connection test failed" } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Connection test failed";
+    console.error(`[vendor-config] Test connection failed for ${vendor}:`, message);
+    return Response.json({ data: { success: false, message } });
   }
 }
