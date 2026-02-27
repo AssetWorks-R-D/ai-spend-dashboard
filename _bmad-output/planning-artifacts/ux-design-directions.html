@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Spend Dashboard — Final Design Direction (A2 + D2 KPI Bar)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-family: 'Inter', -apple-system, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
+  body { background: #EDEAE4; min-height: 100vh; }
+
+  /* ═══════════════════════════════════════════
+     KPI BAR — dark gradient, single compact row
+     Hero metrics left | vendor total cards right
+     ═══════════════════════════════════════════ */
+  .kpi-bar {
+    background: linear-gradient(135deg, #1a1a2e 0%, #6C63FF 100%);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .hero-cluster {
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+
+  .hero-kpi { display: flex; flex-direction: column; gap: 0; }
+
+  .hero-kpi-label {
+    font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.45);
+    text-transform: uppercase; letter-spacing: 0.4px; line-height: 1; margin-bottom: 2px;
+  }
+
+  .hero-kpi-value {
+    font-size: 22px; font-weight: 800; color: #fff;
+    line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+
+  .hero-kpi-value .unit { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.5); }
+
+  .bar-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+
+  /* ─── Vendor total cards ─── */
+  .vendor-cluster { display: flex; gap: 6px; flex: 1; min-width: 0; }
+
+  .vendor-card {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px; padding: 6px 10px; flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: background 0.15s; cursor: default;
+  }
+
+  .vendor-card:hover { background: rgba(255,255,255,0.12); }
+
+  .vendor-card.v-cursor  { border-left: 2px solid rgba(165,180,196,0.6); }
+  .vendor-card.v-claude  { border-left: 2px solid rgba(232,115,74,0.6); }
+  .vendor-card.v-copilot { border-left: 2px solid rgba(34,197,94,0.6); }
+  .vendor-card.v-replit  { border-left: 2px solid rgba(242,101,36,0.6); }
+  .vendor-card.v-kiro    { border-left: 2px solid rgba(124,58,237,0.6); }
+
+  .vendor-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+
+  .vendor-name {
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .freshness { display: flex; align-items: center; gap: 3px; font-size: 9px; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+  .freshness-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .freshness.fresh  { color: #4ade80; }
+  .freshness.fresh  .freshness-dot { background: #4ade80; }
+  .freshness.stale  { color: #fbbf24; }
+  .freshness.stale  .freshness-dot { background: #fbbf24; }
+  .freshness.old    { color: #f87171; }
+  .freshness.old    .freshness-dot { background: #f87171; }
+  .freshness.manual { color: #a8a29e; }
+  .freshness.manual .freshness-dot { background: #a8a29e; }
+
+  .vendor-metrics { display: flex; align-items: baseline; gap: 6px; }
+  .vendor-spend { font-size: 14px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .vendor-tokens { font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.38); font-variant-numeric: tabular-nums; }
+  .vendor-seats { font-size: 9px; color: rgba(255,255,255,0.28); line-height: 1; }
+
+  .period-select {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 5px;
+    font-size: 11px; font-family: 'Inter', sans-serif; cursor: pointer; flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════
+     MAIN CONTENT — A2 Warm Gallery cards
+     Cream page, white cards, circle avatars,
+     bordered tool cells, text-link CTA
+     ═══════════════════════════════════════════ */
+  .main-content { padding: 16px 24px 24px; }
+
+  .view-toggle-bar {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 14px;
+    background: rgba(0,0,0,0.05); padding: 3px; border-radius: 8px; width: fit-content;
+  }
+
+  .view-toggle {
+    padding: 5px 14px; border: none; border-radius: 6px;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; background: transparent; color: #78716c; transition: all 0.15s;
+  }
+
+  .view-toggle.active { background: #1A1A1A; color: #fff; }
+
+  /* ─── Card grid ─── */
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px;
+  }
+
+  .member-card {
+    background: #FFFFFF; border: 1px solid #DDD8D0; border-radius: 12px;
+    padding: 14px; transition: box-shadow 0.2s, transform 0.15s;
+  }
+
+  .member-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+
+  .member-card.is-you {
+    border: 2px solid #D97706; background: #FFFCF5;
+    box-shadow: 0 0 0 3px rgba(217,119,6,0.15);
+  }
+
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; color: #fff; flex-shrink: 0;
+  }
+
+  .card-name { font-size: 14px; font-weight: 600; color: #1A1A1A; }
+  .card-badges { margin-left: auto; display: flex; gap: 4px; }
+  .badge-dot { width: 16px; height: 16px; border-radius: 50%; font-size: 9px; display: flex; align-items: center; justify-content: center; }
+
+  /* ─── Tool cells (A2 style — 3-col grid) ─── */
+  .tool-quadrant { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px; }
+
+  .tool-cell {
+    border-radius: 8px; padding: 6px 4px; text-align: center; min-height: 52px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+  }
+
+  .tool-cell.has-data { border-color: rgba(0,0,0,0.08); }
+  .tool-cell .tool-name { font-size: 9px; font-weight: 700; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tool-cell .tool-spend { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .tool-cell .tool-tokens { font-size: 9px; font-weight: 500; opacity: 0.7; font-variant-numeric: tabular-nums; }
+  .tool-cell.empty { background: #F5F2ED; border-color: transparent; }
+  .tool-cell.empty .tool-name { color: #C4C0BA; }
+  .tool-cell.empty .tool-spend { color: #C4C0BA; font-size: 11px; font-weight: 400; }
+
+  .card-total { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+  .total-spend { font-size: 18px; font-weight: 700; color: #1A1A1A; font-variant-numeric: tabular-nums; }
+  .total-tokens { font-size: 12px; color: #A39E96; font-variant-numeric: tabular-nums; }
+
+  .suggestion-cta {
+    font-size: 12px; color: #D97706; font-weight: 500;
+    cursor: pointer; padding: 6px 0; border-top: 1px solid #F0EDE8;
+  }
+
+  .suggestion-cta:hover { text-decoration: underline; }
+
+  /* ─── Chart view ─── */
+  .chart-container {
+    background: #FFFFFF; border-radius: 12px; border: 1px solid #DDD8D0; padding: 16px 24px 24px;
+  }
+
+  .chart-title { font-size: 14px; font-weight: 600; color: #1A1A1A; margin-bottom: 16px; }
+  .chart-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .chart-label { width: 100px; font-size: 12px; color: #6B6560; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chart-bar-track { flex: 1; height: 28px; background: #F0EDE8; border-radius: 6px; overflow: hidden; display: flex; }
+  .chart-segment { height: 100%; }
+  .chart-amount { width: 64px; font-size: 12px; font-weight: 600; color: #1A1A1A; font-variant-numeric: tabular-nums; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #F0EDE8; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #6B6560; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══ KPI BAR ═══ -->
+<div class="kpi-bar">
+  <div class="hero-cluster">
+    <div class="hero-kpi">
+      <span class="hero-kpi-label">Total Spend</span>
+      <span class="hero-kpi-value"><span class="unit">$</span>14,280</span>
+    </div>
+    <div class="hero-kpi">
+      <span class="hero-kpi-label">Tokens</span>
+      <span class="hero-kpi-value">2.4<span class="unit">M</span></span>
+    </div>
+    <div class="hero-kpi">
+      <span class="hero-kpi-label">Active</span>
+      <span class="hero-kpi-value">24<span class="unit">/29</span></span>
+    </div>
+  </div>
+
+  <div class="bar-divider"></div>
+
+  <div class="vendor-cluster">
+    <div class="vendor-card v-cursor">
+      <div class="vendor-top">
+        <span class="vendor-name">Cursor</span>
+        <div class="freshness fresh"><span class="freshness-dot"></span>2h</div>
+      </div>
+      <div class="vendor-metrics">
+        <span class="vendor-spend">$5,840</span>
+        <span class="vendor-tokens">980K tok</span>
+      </div>
+      <span class="vendor-seats">22 seats</span>
+    </div>
+
+    <div class="vendor-card v-claude">
+      <div class="vendor-top">
+        <span class="vendor-name">Claude</span>
+        <div class="freshness fresh"><span class="freshness-dot"></span>1h</div>
+      </div>
+      <div class="vendor-metrics">
+        <span class="vendor-spend">$4,120</span>
+        <span class="vendor-tokens">820K tok</span>
+      </div>
+      <span class="vendor-seats">18 seats</span>
+    </div>
+
+    <div class="vendor-card v-copilot">
+      <div class="vendor-top">
+        <span class="vendor-name">Copilot</span>
+        <div class="freshness stale"><span class="freshness-dot"></span>18h</div>
+      </div>
+      <div class="vendor-metrics">
+        <span class="vendor-spend">$2,660</span>
+        <span class="vendor-tokens">410K tok</span>
+      </div>
+      <span class="vendor-seats">29 (5 idle)</span>
+    </div>
+
+    <div class="vendor-card v-replit">
+      <div class="vendor-top">
+        <span class="vendor-name">Replit</span>
+        <div class="freshness manual"><span class="freshness-dot"></span>5d</div>
+      </div>
+      <div class="vendor-metrics">
+        <span class="vendor-spend">$980</span>
+        <span class="vendor-tokens">120K tok</span>
+      </div>
+      <span class="vendor-seats">8 seats</span>
+    </div>
+
+    <div class="vendor-card v-kiro">
+      <div class="vendor-top">
+        <span class="vendor-name">Kiro</span>
+        <div class="freshness fresh"><span class="freshness-dot"></span>3h</div>
+      </div>
+      <div class="vendor-metrics">
+        <span class="vendor-spend">$680</span>
+        <span class="vendor-tokens">95K tok</span>
+      </div>
+      <span class="vendor-seats">6 seats</span>
+    </div>
+  </div>
+
+  <select class="period-select">
+    <option>Feb 2026</option>
+    <option>Jan 2026</option>
+    <option>Dec 2025</option>
+  </select>
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<div class="main-content">
+  <div class="view-toggle-bar">
+    <button class="view-toggle active" onclick="toggleView('cards')">Cards</button>
+    <button class="view-toggle" onclick="toggleView('chart')">Chart</button>
+  </div>
+
+  <div class="card-grid" id="cards-view"></div>
+  <div class="chart-container hidden" id="chart-view"></div>
+</div>
+
+<script>
+const members = [
+  { name: 'Dana Martinez', initials: 'DM', color: '#7C3AED', isYou: false, claude: 420, cursor: 310, copilot: 85, replit: 45, kiro: 180, total: 1040, tokens: '185K', badges: ['🏆','⚡'], vendorTokens: { claude: '75K', cursor: '55K', copilot: '15K', replit: '8K', kiro: '32K' } },
+  { name: 'Ben Smith', initials: 'BS', color: '#D97706', isYou: true, claude: 380, cursor: 520, copilot: 120, replit: 0, kiro: 95, total: 1115, tokens: '210K', badges: ['🔧','🎯'], vendorTokens: { claude: '68K', cursor: '92K', copilot: '21K', replit: '0', kiro: '17K' } },
+  { name: 'Sarah Chen', initials: 'SC', color: '#22C55E', isYou: false, claude: 290, cursor: 180, copilot: 340, replit: 120, kiro: 0, total: 930, tokens: '156K', badges: ['🌟'], vendorTokens: { claude: '52K', cursor: '32K', copilot: '60K', replit: '21K', kiro: '0' } },
+  { name: 'Mike Torres', initials: 'MT', color: '#3B82F6', isYou: false, claude: 510, cursor: 0, copilot: 65, replit: 0, kiro: 220, total: 795, tokens: '142K', badges: ['📊'], vendorTokens: { claude: '91K', cursor: '0', copilot: '12K', replit: '0', kiro: '39K' } },
+  { name: 'Priya Patel', initials: 'PP', color: '#EC4899', isYou: false, claude: 180, cursor: 440, copilot: 210, replit: 85, kiro: 0, total: 915, tokens: '168K', badges: ['⚡','🌟'], vendorTokens: { claude: '32K', cursor: '78K', copilot: '37K', replit: '15K', kiro: '0' } },
+  { name: 'Jake Wilson', initials: 'JW', color: '#14B8A6', isYou: false, claude: 95, cursor: 280, copilot: 155, replit: 0, kiro: 310, total: 840, tokens: '131K', badges: [], vendorTokens: { claude: '17K', cursor: '50K', copilot: '27K', replit: '0', kiro: '55K' } },
+  { name: 'Aria Kim', initials: 'AK', color: '#F59E0B', isYou: false, claude: 340, cursor: 0, copilot: 280, replit: 190, kiro: 0, total: 810, tokens: '145K', badges: ['🏆'], vendorTokens: { claude: '60K', cursor: '0', copilot: '50K', replit: '34K', kiro: '0' } },
+  { name: 'Carlos Ruiz', initials: 'CR', color: '#8B5CF6', isYou: false, claude: 220, cursor: 350, copilot: 0, replit: 0, kiro: 175, total: 745, tokens: '128K', badges: [], vendorTokens: { claude: '39K', cursor: '62K', copilot: '0', replit: '0', kiro: '31K' } },
+  { name: 'Nora Adams', initials: 'NA', color: '#06B6D4', isYou: false, claude: 0, cursor: 85, copilot: 0, replit: 0, kiro: 0, total: 85, tokens: '12K', badges: [], vendorTokens: { claude: '0', cursor: '15K', copilot: '0', replit: '0', kiro: '0' } },
+  { name: 'Leo Park', initials: 'LP', color: '#EF4444', isYou: false, claude: 160, cursor: 210, copilot: 180, replit: 65, kiro: 90, total: 705, tokens: '118K', badges: ['🎯','⚡'], vendorTokens: { claude: '28K', cursor: '37K', copilot: '32K', replit: '12K', kiro: '16K' } },
+  { name: 'Maya Singh', initials: 'MS', color: '#84CC16', isYou: false, claude: 275, cursor: 165, copilot: 95, replit: 0, kiro: 145, total: 680, tokens: '110K', badges: ['🌟'], vendorTokens: { claude: '49K', cursor: '29K', copilot: '17K', replit: '0', kiro: '26K' } },
+  { name: 'Ethan Brown', initials: 'EB', color: '#F97316', isYou: false, claude: 190, cursor: 290, copilot: 0, replit: 110, kiro: 0, total: 590, tokens: '95K', badges: [], vendorTokens: { claude: '34K', cursor: '51K', copilot: '0', replit: '19K', kiro: '0' } },
+];
+
+const vendors = [
+  { key: 'claude', name: 'Claude', primary: '#D97706', bg: '#FFF7ED', text: '#92400E', border: 'rgba(217,119,6,0.2)' },
+  { key: 'cursor', name: 'Cursor', primary: '#A5B4C4', bg: '#1A1A2E', text: '#E5E7EB', border: 'rgba(26,26,46,0.25)' },
+  { key: 'copilot', name: 'Copilot', primary: '#22C55E', bg: '#F0FDF4', text: '#166534', border: 'rgba(34,197,94,0.2)' },
+  { key: 'replit', name: 'Replit', primary: '#F26522', bg: '#0E1525', text: '#FED7AA', border: 'rgba(14,21,37,0.25)' },
+  { key: 'kiro', name: 'Kiro', primary: '#7C3AED', bg: '#F5F3FF', text: '#5B21B6', border: 'rgba(124,58,237,0.2)' },
+];
+
+function makeToolCell(vendor, member) {
+  const amount = member[vendor.key];
+  const tokenStr = member.vendorTokens[vendor.key];
+  const isEmpty = !amount || amount === 0;
+  const cell = document.createElement('div');
+  cell.className = 'tool-cell' + (isEmpty ? ' empty' : ' has-data');
+  if (!isEmpty) { cell.style.background = vendor.bg; cell.style.color = vendor.text; cell.style.borderColor = vendor.border; }
+  cell.innerHTML = isEmpty
+    ? `<span class="tool-name">${vendor.name}</span><span class="tool-spend">—</span>`
+    : `<span class="tool-name">${vendor.name}</span><span class="tool-spend">$${amount}</span><span class="tool-tokens">${tokenStr} tok</span>`;
+  return cell;
+}
+
+function renderCards() {
+  const container = document.getElementById('cards-view');
+  container.innerHTML = '';
+  members.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'member-card' + (m.isYou ? ' is-you' : '');
+    const badgeHtml = m.badges.map(b => `<span class="badge-dot" style="background:${b==='🏆'?'#EAB308':b==='⚡'?'#3B82F6':b==='🌟'?'#22C55E':b==='🔧'?'#6B7280':b==='🎯'?'#7C3AED':'#3B82F6'}">${b}</span>`).join('');
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="avatar" style="background:${m.color}">${m.initials}</div>
+        <span class="card-name">${m.name}</span>
+        <div class="card-badges">${badgeHtml}</div>
+      </div>
+      <div class="tool-quadrant"></div>
+      <div class="card-total">
+        <span class="total-spend">$${m.total.toLocaleString()}</span>
+        <span class="total-tokens">${m.tokens} tokens</span>
+      </div>
+      ${m.isYou ? '<div class="suggestion-cta">✨ Your February insight is ready</div>' : ''}
+    `;
+    const quadrant = card.querySelector('.tool-quadrant');
+    vendors.forEach(v => quadrant.appendChild(makeToolCell(v, m)));
+    container.appendChild(card);
+  });
+}
+
+function renderChart() {
+  const container = document.getElementById('chart-view');
+  const maxTotal = Math.max(...members.map(m => m.total));
+  const sorted = [...members].sort((a, b) => b.total - a.total).slice(0, 8);
+  let html = `<div class="chart-title">Team Spend by Member — Top 8 (February 2026)</div>`;
+  sorted.forEach((m, i) => {
+    const segments = vendors.map(v => {
+      const val = m[v.key] || 0;
+      const pct = (val / maxTotal) * 100;
+      return `<div class="chart-segment" style="width:${pct}%;background:${v.primary}" title="${v.name}: $${val}"></div>`;
+    }).join('');
+    const medal = i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : '';
+    html += `<div class="chart-bar-row"><span class="chart-label">${m.name}${medal}</span><div class="chart-bar-track">${segments}</div><span class="chart-amount">$${m.total.toLocaleString()}</span></div>`;
+  });
+  html += `<div class="chart-legend">`;
+  vendors.forEach(v => { html += `<div class="legend-item"><span class="legend-swatch" style="background:${v.primary}"></span>${v.name}</div>`; });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+renderCards();
+renderChart();
+
+function toggleView(view) {
+  const cards = document.getElementById('cards-view');
+  const chart = document.getElementById('chart-view');
+  const btns = document.querySelectorAll('.view-toggle');
+  if (view === 'cards') {
+    cards.classList.remove('hidden'); chart.classList.add('hidden');
+    btns[0].classList.add('active'); btns[1].classList.remove('active');
+  } else {
+    cards.classList.add('hidden'); chart.classList.remove('hidden');
+    btns[1].classList.add('active'); btns[0].classList.remove('active');
+  }
+}
+</script>
+</body>
+</html>
