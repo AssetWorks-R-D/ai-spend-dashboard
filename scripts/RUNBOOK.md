@@ -64,16 +64,16 @@ No data collection yet. Kiro is included in the vendor list for future use.
 ## Important Notes
 
 ### Period Dates (Critical!)
-All seeded data MUST use local-time dates, NOT UTC strings:
+All seeded data MUST use UTC dates via `Date.UTC()`:
 ```ts
-// CORRECT — local time
-const periodStart = new Date(2026, 1, 1);        // Feb 1 local
-const periodEnd = new Date(2026, 2, 0, 23, 59, 59, 999); // Feb 28 end local
+// CORRECT — explicit UTC
+const periodStart = new Date(Date.UTC(2026, 1, 1));                   // 2026-02-01T00:00:00Z
+const periodEnd = new Date(Date.UTC(2026, 2, 0, 23, 59, 59, 999));   // 2026-02-28T23:59:59.999Z
 
-// WRONG — UTC (will not match periodBounds query)
-const periodStart = new Date("2026-02-01T00:00:00Z");
+// WRONG — local time (breaks on Vercel which runs in UTC)
+const periodStart = new Date(2026, 1, 1);        // Creates CST/local date
 ```
-The `periodBounds()` function in the app uses `new Date(year, month-1, 1)` which creates local-time dates. If you seed with UTC, the records won't appear in the dashboard.
+The `periodBounds()` function in the app uses `Date.UTC()` for consistency across local dev and Vercel (UTC). If you seed with local-time dates, the records may not appear in the dashboard depending on the server's timezone.
 
 ### Edge Cookie Extraction
 The scraper scripts use `scripts/extract-edge-cookie.ts` to decrypt cookies from Microsoft Edge's SQLite database using the macOS Keychain. The extracted cookies have garbage prefix bytes that need regex cleanup:
@@ -101,6 +101,7 @@ tokens = Math.round((spendCents / 100 / 6) * 1_000_000)
 | `check-copilot-billing.ts` | Check GitHub Copilot billing APIs |
 | `merge-duplicates.ts` | Merge duplicate member records |
 | `fix-period-dates.ts` | Fix UTC→local period dates |
+| `fix-dates-to-utc.ts` | Migrate all dates to UTC midnight |
 | `fix-subscription-costs.ts` | Add Cursor $40 seat fee |
 
 ## Pricing Reference
