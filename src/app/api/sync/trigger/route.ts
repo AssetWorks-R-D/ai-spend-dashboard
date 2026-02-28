@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAdminApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { vendorConfigs, usageRecords } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { decrypt } from "@/lib/encryption";
 import { getAdapter } from "@/lib/adapters/registry";
 import { z } from "zod/v4";
@@ -59,14 +59,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Default to current month
+  // Default to current month (UTC)
   const now = new Date();
   const periodStart = parsed.data.periodStart
     ? new Date(parsed.data.periodStart)
-    : new Date(now.getFullYear(), now.getMonth(), 1);
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const periodEnd = parsed.data.periodEnd
     ? new Date(parsed.data.periodEnd)
-    : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
 
   try {
     const credentials = JSON.parse(decrypt(configs[0].encryptedCredentials));
@@ -75,7 +75,20 @@ export async function POST(request: NextRequest) {
       { start: periodStart, end: periodEnd }
     );
 
-    // Upsert usage records
+    // Delete existing API/scraper records for this vendor+period, then insert fresh
+    // (preserves manual entries by only deleting api/scraper sourceTypes)
+    await db
+      .delete(usageRecords)
+      .where(
+        and(
+          eq(usageRecords.tenantId, session.user.tenantId),
+          eq(usageRecords.vendor, vendor),
+          gte(usageRecords.periodStart, periodStart),
+          lte(usageRecords.periodEnd, periodEnd),
+          eq(usageRecords.sourceType, "api")
+        )
+      );
+
     for (const record of records) {
       await db.insert(usageRecords).values({
         id: crypto.randomUUID(),
