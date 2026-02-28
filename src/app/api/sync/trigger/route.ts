@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { requireAdminApi } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { vendorConfigs, usageRecords } from "@/lib/db/schema";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { vendorConfigs, usageRecords, memberIdentities, members } from "@/lib/db/schema";
+import { eq, and, or, gte, lte, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/encryption";
 import { getAdapter } from "@/lib/adapters/registry";
 import { z } from "zod/v4";
@@ -89,10 +89,46 @@ export async function POST(request: NextRequest) {
         )
       );
 
+    // Build member lookup maps from member_identities for this vendor
+    const identities = await db
+      .select({
+        memberId: memberIdentities.memberId,
+        vendorUsername: memberIdentities.vendorUsername,
+        vendorEmail: memberIdentities.vendorEmail,
+      })
+      .from(memberIdentities)
+      .where(eq(memberIdentities.vendor, vendor));
+
+    const emailToMember = new Map<string, string>();
+    const usernameToMember = new Map<string, string>();
+    for (const id of identities) {
+      if (id.vendorEmail) emailToMember.set(id.vendorEmail.toLowerCase(), id.memberId);
+      if (id.vendorUsername) usernameToMember.set(id.vendorUsername.toLowerCase(), id.memberId);
+    }
+
+    // Also build a fallback map from member emails (for vendors like Cursor that return @assetworks emails)
+    const allMembers = await db
+      .select({ id: members.id, email: members.email })
+      .from(members)
+      .where(eq(members.tenantId, session.user.tenantId));
+
+    const memberEmailMap = new Map<string, string>();
+    for (const m of allMembers) {
+      memberEmailMap.set(m.email.toLowerCase(), m.id);
+    }
+
     for (const record of records) {
+      // Resolve memberId: identity email > identity username > member email
+      const memberId =
+        (record.vendorEmail ? emailToMember.get(record.vendorEmail.toLowerCase()) : undefined) ??
+        (record.vendorUsername ? usernameToMember.get(record.vendorUsername.toLowerCase()) : undefined) ??
+        (record.vendorEmail ? memberEmailMap.get(record.vendorEmail.toLowerCase()) : undefined) ??
+        null;
+
       await db.insert(usageRecords).values({
         id: crypto.randomUUID(),
         tenantId: session.user.tenantId,
+        memberId,
         vendor: record.vendor,
         vendorUsername: record.vendorUsername,
         vendorEmail: record.vendorEmail,
