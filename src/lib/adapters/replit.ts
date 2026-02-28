@@ -55,47 +55,31 @@ export const replitAdapter: VendorAdapter = {
     const { sessionCookie } = config.credentials;
     if (!sessionCookie) return false;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     try {
-      const { chromium } = await import("playwright");
-      const browser = await chromium.launch({
-        headless: false,
-        args: ["--disable-blink-features=AutomationControlled", "--no-sandbox"],
-      });
-
-      const context = await browser.newContext({
-        userAgent:
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      });
-
-      await context.addCookies([
-        {
-          name: "connect.sid",
-          value: sessionCookie,
-          domain: ".replit.com",
-          path: "/",
-          httpOnly: true,
-          secure: true,
-          sameSite: "Lax",
+      // Test the cookie with a lightweight GraphQL query
+      const res = await fetch("https://replit.com/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `connect.sid=${sessionCookie}`,
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+          "X-Requested-With": "XMLHttpRequest",
         },
-      ]);
-
-      const page = await context.newPage();
-      await page.addInitScript(() => {
-        Object.defineProperty(navigator, "webdriver", { get: () => false });
+        body: JSON.stringify({
+          query: "query { currentUser { id username } }",
+        }),
+        signal: controller.signal,
       });
-
-      try {
-        await page.goto("https://replit.com/~", {
-          waitUntil: "domcontentloaded",
-          timeout: 15000,
-        });
-        await page.waitForTimeout(3000);
-        return !page.url().includes("/login");
-      } finally {
-        await browser.close();
-      }
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data?.data?.currentUser?.id;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeout);
     }
   },
 };

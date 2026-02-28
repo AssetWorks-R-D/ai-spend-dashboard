@@ -1,39 +1,26 @@
 #!/usr/bin/env npx tsx
 /**
- * Captures the Replit connect.sid cookie from your Edge browser profile.
- *
- * How it works:
- *   1. Launches Edge using your existing profile (already logged into Replit)
- *   2. Navigates to replit.com to verify the session
- *   3. Extracts and prints the connect.sid cookie
- *
- * Prerequisites:
- *   - Close Edge completely before running
- *   - Must be logged into Replit in Edge
+ * Captures the Replit connect.sid cookie from Edge's cookie store.
+ * Works while Edge is running — reads a copy of the cookie DB.
  *
  * Usage:
  *   npx tsx scripts/replit-auth.ts
  *   npx tsx scripts/replit-auth.ts "Default"    # use a different Edge profile
  */
-import { captureReplitCookieFromEdge } from "../src/lib/scrapers/replit";
+import { extractEdgeCookie } from "./extract-edge-cookie";
 
-async function main() {
-  const profileDir = process.argv[2] || "Profile 1";
+const profileDir = process.argv[2] || "Profile 1";
 
-  console.log(`Launching Edge (profile: ${profileDir})...`);
-  console.log("Make sure Edge is closed first.\n");
+console.log(`Reading Replit cookie from Edge (profile: ${profileDir})...\n`);
 
-  const { cookie, error } = await captureReplitCookieFromEdge(profileDir);
+const cookie = extractEdgeCookie("replit.com", "connect.sid", profileDir);
 
-  if (error) {
-    console.error(`Error: ${error}`);
-    process.exit(1);
-  }
-
-  console.log("\n=== Session cookie captured! ===\n");
+if (cookie) {
+  console.log("=== Session cookie captured! ===\n");
   console.log(`connect.sid=${cookie}`);
   console.log("\nPaste this value into the Replit vendor config 'Session Cookie' field.");
   console.log("This cookie typically lasts for several weeks.\n");
+} else {
+  console.error("Cookie not found. Make sure you're logged into Replit in Edge.");
+  process.exit(1);
 }
-
-main().catch(console.error);

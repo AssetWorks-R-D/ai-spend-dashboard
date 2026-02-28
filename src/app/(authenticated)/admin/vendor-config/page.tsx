@@ -35,7 +35,7 @@ const VENDOR_CREDENTIAL_FIELDS: Record<ApiVendor, { key: string; label: string; 
     { key: "apiKey", label: "API Key", type: "password" },
   ],
   replit: [
-    { key: "sessionCookie", label: "Session Cookie (run: npx tsx scripts/replit-auth.ts)", type: "password" },
+    { key: "sessionCookie", label: "Session Cookie (Edge DevTools → replit.com → connect.sid)", type: "password" },
     { key: "teamSlug", label: "Team Slug (optional)" },
   ],
 };

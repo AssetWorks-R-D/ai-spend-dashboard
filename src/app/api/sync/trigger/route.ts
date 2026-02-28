@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAdminApi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { vendorConfigs, usageRecords } from "@/lib/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { decrypt } from "@/lib/encryption";
 import { getAdapter } from "@/lib/adapters/registry";
 import { z } from "zod/v4";
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           eq(usageRecords.vendor, vendor),
           gte(usageRecords.periodStart, periodStart),
           lte(usageRecords.periodEnd, periodEnd),
-          eq(usageRecords.sourceType, "api")
+          inArray(usageRecords.sourceType, ["api", "scraper"])
         )
       );
 
