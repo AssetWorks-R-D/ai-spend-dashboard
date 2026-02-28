@@ -16,7 +16,7 @@ import { VENDOR_COLORS, VENDOR_LABELS } from "@/lib/vendor-colors";
 import { Save, Plug, RefreshCw, Users } from "lucide-react";
 import type { ApiVendor } from "@/types";
 
-const API_VENDORS: ApiVendor[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const API_VENDORS: ApiVendor[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 const VENDOR_CREDENTIAL_FIELDS: Record<ApiVendor, { key: string; label: string; type?: string }[]> = {
   cursor: [
@@ -58,6 +58,8 @@ export default function VendorConfigPage() {
   const [testResults, setTestResults] = useState<Record<string, boolean | null>>({});
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [syncResults, setSyncResults] = useState<Record<string, { success: boolean; count?: number } | null>>({});
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllResult, setSyncAllResult] = useState<{ total: number; succeeded: number } | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState<{ membersCreated: number; identitiesMatched: number; recordsLinked: number; totalMembers: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,6 +161,43 @@ export default function VendorConfigPage() {
     }
   }
 
+  async function handleSyncAll() {
+    const configured = API_VENDORS.filter((v) => configs[v]?.hasCredentials);
+    if (configured.length === 0) return;
+
+    setSyncingAll(true);
+    setSyncAllResult(null);
+    // Mark all configured vendors as syncing
+    for (const v of configured) {
+      setSyncing((s) => ({ ...s, [v]: true }));
+      setSyncResults((r) => ({ ...r, [v]: null }));
+    }
+
+    const results = await Promise.allSettled(
+      configured.map(async (vendor) => {
+        const res = await fetch("/api/sync/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vendor }),
+        });
+        const json = await res.json();
+        setSyncing((s) => ({ ...s, [vendor]: false }));
+        if (res.ok) {
+          setSyncResults((r) => ({ ...r, [vendor]: { success: true, count: json.data?.recordsImported } }));
+          return true;
+        } else {
+          setSyncResults((r) => ({ ...r, [vendor]: { success: false } }));
+          return false;
+        }
+      })
+    );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled" && r.value).length;
+    setSyncAllResult({ total: configured.length, succeeded });
+    setSyncingAll(false);
+    fetchConfigs();
+  }
+
   if (loading) {
     return (
       <div>
@@ -170,12 +209,26 @@ export default function VendorConfigPage() {
 
   return (
     <div>
-      <div>
-        <h1 className="text-2xl font-bold text-(--text-primary)">Vendor Configuration</h1>
-        <p className="mt-1 text-sm text-(--text-secondary)">
-          Configure API credentials and scraper logins for each vendor.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-(--text-primary)">Vendor Configuration</h1>
+          <p className="mt-1 text-sm text-(--text-secondary)">
+            Configure API credentials and scraper logins for each vendor.
+          </p>
+        </div>
+        <Button
+          onClick={handleSyncAll}
+          disabled={syncingAll || !API_VENDORS.some((v) => configs[v]?.hasCredentials)}
+        >
+          <RefreshCw className={`mr-1.5 h-4 w-4 ${syncingAll ? "animate-spin" : ""}`} />
+          {syncingAll ? "Syncing All..." : "Sync All"}
+        </Button>
       </div>
+      {syncAllResult && (
+        <p className={`mt-2 text-sm ${syncAllResult.succeeded === syncAllResult.total ? "text-green-600" : "text-amber-600"}`}>
+          Synced {syncAllResult.succeeded}/{syncAllResult.total} vendors successfully.
+        </p>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {API_VENDORS.map((vendor) => {
