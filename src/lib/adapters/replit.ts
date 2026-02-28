@@ -1,12 +1,23 @@
 import type { VendorAdapter, VendorConfig, UsageRecord } from "./types";
 import type { DateRange } from "@/types";
-import { scrapeReplitUsage, scrapeReplitUsageWithEdge } from "@/lib/scrapers/replit";
 
 export const replitAdapter: VendorAdapter = {
   vendor: "replit",
 
   async fetchUsageData(config: VendorConfig, dateRange: DateRange): Promise<UsageRecord[]> {
     const { sessionCookie, teamSlug } = config.credentials;
+
+    // Replit requires Playwright (browser scraping) — only works locally.
+    // Dynamic import so the adapter doesn't crash on Vercel where Playwright isn't installed.
+    let scrapeReplitUsage: typeof import("@/lib/scrapers/replit").scrapeReplitUsage;
+    let scrapeReplitUsageWithEdge: typeof import("@/lib/scrapers/replit").scrapeReplitUsageWithEdge;
+    try {
+      const mod = await import("@/lib/scrapers/replit");
+      scrapeReplitUsage = mod.scrapeReplitUsage;
+      scrapeReplitUsageWithEdge = mod.scrapeReplitUsageWithEdge;
+    } catch {
+      throw new Error("Replit sync requires Playwright (local only). Use scripts/seed-replit-data.ts on Vercel.");
+    }
 
     // Try cookie mode first, fall back to Edge profile
     let result;

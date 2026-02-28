@@ -258,7 +258,9 @@ export default function VendorConfigPage() {
                     ? `Last sync: ${new Date(config.lastSyncAt).toLocaleString()}`
                     : "Never synced"}
                   {config?.lastSyncStatus && config.lastSyncStatus !== "success" && (
-                    <span className="ml-2 text-destructive">({config.lastSyncStatus})</span>
+                    <span className="ml-2 text-destructive" title={config.lastSyncStatus}>
+                      ({config.lastSyncStatus.length > 80 ? config.lastSyncStatus.slice(0, 80) + "…" : config.lastSyncStatus})
+                    </span>
                   )}
                 </CardDescription>
               </CardHeader>
