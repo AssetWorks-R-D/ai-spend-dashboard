@@ -3,7 +3,7 @@ import { usageRecords, members, vendorConfigs } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
 import type { VendorType } from "@/types";
 
-const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 export interface LeaderboardEntry {
   rank: number;

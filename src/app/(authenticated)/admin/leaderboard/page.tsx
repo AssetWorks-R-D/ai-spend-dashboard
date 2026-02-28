@@ -16,7 +16,7 @@ import { currentPeriodKey, periodOptions } from "@/lib/utils/date-ranges";
 import { VENDOR_LABELS } from "@/lib/vendor-colors";
 import type { VendorType } from "@/types";
 
-const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 interface LeaderboardEntry {
   rank: number;

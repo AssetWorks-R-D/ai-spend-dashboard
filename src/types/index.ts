@@ -1,4 +1,4 @@
-export type ApiVendor = "cursor" | "claude" | "copilot" | "kiro" | "replit";
+export type ApiVendor = "cursor" | "claude" | "copilot" | "kiro" | "replit" | "openai";
 export type VendorType = ApiVendor;
 export type SourceType = "api" | "manual" | "scraper";
 export type Confidence = "high" | "medium" | "low";

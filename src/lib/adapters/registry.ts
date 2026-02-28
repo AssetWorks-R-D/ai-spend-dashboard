@@ -5,6 +5,7 @@ import { claudeAdapter } from "./claude";
 import { copilotAdapter } from "./copilot";
 import { kiroAdapter } from "./kiro";
 import { replitAdapter } from "./replit";
+import { openaiAdapter } from "./openai";
 
 const adapters = new Map<ApiVendor, VendorAdapter>([
   ["cursor", cursorAdapter],
@@ -12,6 +13,7 @@ const adapters = new Map<ApiVendor, VendorAdapter>([
   ["copilot", copilotAdapter],
   ["kiro", kiroAdapter],
   ["replit", replitAdapter],
+  ["openai", openaiAdapter],
 ]);
 
 export function getAdapter(vendor: ApiVendor): VendorAdapter | undefined {

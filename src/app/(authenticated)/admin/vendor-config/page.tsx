@@ -38,6 +38,9 @@ const VENDOR_CREDENTIAL_FIELDS: Record<ApiVendor, { key: string; label: string; 
     { key: "sessionCookie", label: "Session Cookie (Edge DevTools → replit.com → connect.sid)", type: "password" },
     { key: "teamSlug", label: "Team Slug (optional)" },
   ],
+  openai: [
+    { key: "adminApiKey", label: "Admin API Key (sk-admin-...)", type: "password" },
+  ],
 };
 
 interface VendorConfigData {

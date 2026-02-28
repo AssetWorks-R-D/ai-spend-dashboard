@@ -47,7 +47,7 @@ interface Identity {
   vendorEmail: string | null;
 }
 
-const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 export default function AdminMembersPage() {
   const [members, setMembers] = useState<Member[]>([]);

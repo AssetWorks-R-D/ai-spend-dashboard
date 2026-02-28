@@ -16,7 +16,7 @@ import { formatTokens } from "@/lib/utils/format-tokens";
 import { formatName } from "@/lib/utils/format-name";
 import type { VendorType, LeaderboardDisplayMode } from "@/types";
 
-const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 interface VendorBreakdown {
@@ -45,6 +45,7 @@ interface ChartRow {
   copilot: number;
   kiro: number;
   replit: number;
+  openai: number;
   total: number;
   totalCents: number;
   rank: number;
@@ -63,6 +64,7 @@ function buildChartData(members: MemberChartData[], limit = 10, displayMode: Lea
         copilot: 0,
         kiro: 0,
         replit: 0,
+        openai: 0,
         total: m.totalSpendCents / 100,
         totalCents: m.totalSpendCents,
         rank: index,

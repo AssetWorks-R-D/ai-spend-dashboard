@@ -4,7 +4,7 @@ import { vendorConfigs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type { VendorType } from "@/types";
 
-const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const ALL_VENDORS: VendorType[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 /** GET /api/sync/status — per-vendor sync status */
 export async function GET() {

@@ -12,7 +12,7 @@ const updateMemberSchema = z.object({
 });
 
 const linkIdentitySchema = z.object({
-  vendor: z.enum(["cursor", "claude", "copilot", "kiro", "replit"]),
+  vendor: z.enum(["cursor", "claude", "copilot", "kiro", "replit", "openai"]),
   vendorUsername: z.string().optional(),
   vendorEmail: z.string().optional(),
 });

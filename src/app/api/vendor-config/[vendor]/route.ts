@@ -9,7 +9,7 @@ import { z } from "zod/v4";
 import crypto from "crypto";
 import type { ApiVendor } from "@/types";
 
-const API_VENDORS: ApiVendor[] = ["cursor", "claude", "copilot", "kiro", "replit"];
+const API_VENDORS: ApiVendor[] = ["cursor", "claude", "copilot", "kiro", "replit", "openai"];
 
 const saveCredentialsSchema = z.object({
   credentials: z.record(z.string(), z.string()),

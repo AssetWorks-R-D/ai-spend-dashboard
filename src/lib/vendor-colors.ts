@@ -38,6 +38,12 @@ export const VENDOR_COLORS: Record<VendorType, VendorColor> = {
     background: "#F5F0FF",
     textOnPrimary: "#FFFFFF",
   },
+  openai: {
+    primary: "#000000",
+    accent: "#10A37F",
+    background: "#F0FDF9",
+    textOnPrimary: "#FFFFFF",
+  },
 };
 
 export const VENDOR_LABELS: Record<VendorType, string> = {
@@ -46,4 +52,5 @@ export const VENDOR_LABELS: Record<VendorType, string> = {
   copilot: "Copilot",
   replit: "Replit",
   kiro: "Kiro",
+  openai: "OpenAI",
 };

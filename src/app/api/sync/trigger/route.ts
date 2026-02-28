@@ -10,7 +10,7 @@ import crypto from "crypto";
 import type { ApiVendor } from "@/types";
 
 const triggerSchema = z.object({
-  vendor: z.enum(["cursor", "claude", "copilot", "kiro", "replit"]),
+  vendor: z.enum(["cursor", "claude", "copilot", "kiro", "replit", "openai"]),
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
 });
