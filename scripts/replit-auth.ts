@@ -9,7 +9,7 @@
  */
 import { extractEdgeCookie } from "./extract-edge-cookie";
 
-const profileDir = process.argv[2] || "Profile 1";
+const profileDir = process.argv[2] || "Default";
 
 console.log(`Reading Replit cookie from Edge (profile: ${profileDir})...\n`);
 

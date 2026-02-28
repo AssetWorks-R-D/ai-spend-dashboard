@@ -53,33 +53,8 @@ export const replitAdapter: VendorAdapter = {
 
   async testConnection(config: VendorConfig): Promise<boolean> {
     const { sessionCookie } = config.credentials;
-    if (!sessionCookie) return false;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    try {
-      // Test the cookie with a lightweight GraphQL query
-      const res = await fetch("https://replit.com/graphql", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `connect.sid=${sessionCookie}`,
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        body: JSON.stringify({
-          query: "query { currentUser { id username } }",
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      return !!data?.data?.currentUser?.id;
-    } catch {
-      return false;
-    } finally {
-      clearTimeout(timeout);
-    }
+    // Replit uses browser-based scraping — we can only verify the cookie is set,
+    // not test it server-side (Replit's cookie requires full browser session state).
+    return !!sessionCookie;
   },
 };

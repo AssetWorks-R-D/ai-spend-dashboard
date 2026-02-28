@@ -42,7 +42,13 @@ function decryptEdgeCookie(encryptedHex: string, password: string): string {
     decipher.final(),
   ]);
 
-  return decrypted.toString("utf8");
+  // Convert to latin1 first (preserves byte values), then strip
+  // any non-printable/non-ASCII bytes that Chrome's encryption adds
+  const raw = decrypted.toString("latin1");
+
+  // Keep only printable ASCII characters (0x20-0x7E)
+  const cleaned = raw.replace(/[^\x20-\x7E]/g, "");
+  return cleaned;
 }
 
 export function extractEdgeCookie(
