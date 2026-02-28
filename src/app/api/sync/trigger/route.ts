@@ -75,8 +75,12 @@ export async function POST(request: NextRequest) {
       { start: periodStart, end: periodEnd }
     );
 
-    // Delete existing API/scraper records for this vendor+period, then insert fresh
-    // (preserves manual entries by only deleting api/scraper sourceTypes)
+    // Determine the sourceType this adapter produces, and only delete matching records.
+    // This prevents an API sync from wiping scraper data (e.g., Claude data is scraped,
+    // not available via API — deleting scraper records would lose it).
+    const sourceTypes = [...new Set(records.map((r) => r.sourceType))];
+    if (sourceTypes.length === 0) sourceTypes.push("api"); // default for empty results
+
     await db
       .delete(usageRecords)
       .where(
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
           eq(usageRecords.vendor, vendor),
           gte(usageRecords.periodStart, periodStart),
           lte(usageRecords.periodEnd, periodEnd),
-          inArray(usageRecords.sourceType, ["api", "scraper"])
+          inArray(usageRecords.sourceType, sourceTypes)
         )
       );
 
