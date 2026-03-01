@@ -13,6 +13,8 @@ function basicAuthHeader(apiKey: string): string {
  *   input: ~$3/1M tokens, output: ~$15/1M tokens
  *   weighted avg ≈ $6/1M tokens
  */
+/** $40/seat/month — covers "Included Usage" ($20) + "Free Usage" ($20) credits */
+const CURSOR_SEAT_CENTS = 4000;
 const BLENDED_COST_PER_MILLION_TOKENS = 6; // dollars
 
 function estimateTokensFromSpendCents(spendCents: number): number {
@@ -56,7 +58,8 @@ export const cursorAdapter: VendorAdapter = {
       const records: UsageRecord[] = [];
 
       for (const member of spendData.teamMemberSpend || []) {
-        const totalSpendCents = (member.spendCents || 0) + (member.includedSpendCents || 0);
+        // spendCents = on-demand overage; includedSpendCents is covered by the $40 seat fee
+        const totalSpendCents = (member.spendCents || 0) + CURSOR_SEAT_CENTS;
         records.push({
           vendor: "cursor",
           vendorUsername: member.name || null,

@@ -13,50 +13,52 @@ Copilot seats sync automatically via the adapter when you trigger a sync from th
 For premium request/usage charges beyond the seat cost, check your GitHub billing page and update `COPILOT_USAGE_CENTS` in `scripts/add-copilot-usage.ts`, then run it.
 
 ### 2. Cursor (automatic via API)
-Cursor syncs automatically via the adapter from `GET /api/v1/teams/{team}/usage`. **Important:** The API does NOT include the $40/seat/month subscription fee. After a fresh sync, run:
-```
-npx dotenv -e .env.local -- npx tsx scripts/fix-subscription-costs.ts
-```
+Cursor syncs automatically via the adapter. The $40/seat/month fee is baked directly into the adapter — no post-processing needed. Just trigger a sync from Admin > Vendor Config.
 
-### 3. Claude Team (manual scrape)
+### 3. Claude Team (automated local scrape)
 Claude Team doesn't have a usage API. Data is scraped from claude.ai admin pages using Playwright + Edge cookies.
 
-**Step 1: Scrape usage data**
+**One command:**
 ```
-npx dotenv -e .env.local -- npx tsx scripts/scrape-claude-usage.ts
-```
-This extracts Edge cookies (sessionKey, lastActiveOrg), navigates to claude.ai/admin-settings/usage, and captures all member spend data.
-
-**Step 2: Scrape seat tiers** (only needed if membership changes)
-```
-npx dotenv -e .env.local -- npx tsx scripts/scrape-claude-seats.ts
-```
-This navigates to claude.ai/admin-settings/organization and captures which members are Standard ($25) vs Premium ($100).
-
-**Step 3: Seed the data**
-Update the member data in `scripts/seed-claude-data.ts` with the scraped values, then run:
-```
-npx dotenv -e .env.local -- npx tsx scripts/seed-claude-data.ts
-```
-This creates/updates member records with seat cost + overage = total spend, and estimates tokens at $6/1M blended rate.
-
-### 4. Replit (manual scrape)
-Replit data is scraped from the Replit team page using Playwright + Edge cookies.
-
-**Step 1: Scrape team data**
-```
-npx dotenv -e .env.local -- npx tsx scripts/scrape-replit-team.ts
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-claude-local.ts
 ```
 
-**Step 2: Seed member data** (update amounts in script first)
+This script automatically:
+1. Extracts Edge cookies (sessionKey, lastActiveOrg)
+2. Scrapes `/admin-settings/identity-and-access` → member list with seat types (Standard/Premium)
+3. Scrapes `/admin-settings/usage` → per-member overage spend
+4. Writes members, identities, and usage records to DB (seat + overage = total)
+
+**Preview first:** Add `--dry-run` to see parsed data without writing to DB.
+
+**Debug:** Raw page text is saved to `/tmp/claude-identity-text.txt` and `/tmp/claude-usage-text.txt`. Screenshots at `/tmp/claude-identity.png` and `/tmp/claude-usage.png`.
+
+**Prerequisite:** Be logged into claude.ai in Microsoft Edge.
+
+> **Legacy scripts** (still available but superseded): `scrape-claude-usage.ts`, `scrape-claude-members.ts`, `seed-claude-data.ts`
+
+### 4. Replit (automated local scrape)
+Replit uses a pool model — the total usage on the page IS the vendor total (don't add seats on top).
+
+**One command:**
 ```
-npx dotenv -e .env.local -- npx tsx scripts/seed-replit-data.ts
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-replit-local.ts
 ```
 
-**Step 3: Add unattributed usage** (agent + infra charges, update amount in script)
-```
-npx dotenv -e .env.local -- npx tsx scripts/add-replit-usage.ts
-```
+This script automatically:
+1. Extracts `connect.sid` cookie from Edge (or use `--cookie=eyJ...` or `REPLIT_COOKIE` env var)
+2. Scrapes `/t/assetworks-randd/members` → member list
+3. Scrapes `/t/assetworks-randd/usage` → total pool usage
+4. Writes $25/seat per member (shown on individual cards) + pool remainder as unattributed
+5. Vendor total card = pool total (seats + remainder)
+
+**Preview first:** Add `--dry-run` to see parsed data without writing to DB.
+
+**Debug:** Raw text saved to `/tmp/replit-members-text.txt` and `/tmp/replit-usage-text.txt`.
+
+**Prerequisite:** Be logged into replit.com in Microsoft Edge.
+
+> **Legacy scripts** (still available but superseded): `scrape-replit-team.ts`, `seed-replit-data.ts`
 
 ### 5. Kiro
 No data collection yet. Kiro is included in the vendor list for future use.
@@ -102,15 +104,16 @@ tokens = Math.round((spendCents / 100 / 6) * 1_000_000)
 | `merge-duplicates.ts` | Merge duplicate member records |
 | `fix-period-dates.ts` | Fix UTC→local period dates |
 | `fix-dates-to-utc.ts` | Migrate all dates to UTC midnight |
-| `fix-subscription-costs.ts` | Add Cursor $40 seat fee |
+
 
 ## Pricing Reference
 
 | Vendor | Seat Cost | Notes |
 |--------|-----------|-------|
-| Cursor | $40/seat/mo | Not included in API response |
+| Cursor | $40/seat/mo | Baked into adapter (includes $20 Included + $20 Free credits) |
 | Claude Standard | $25/seat/mo | |
 | Claude Premium | $100/seat/mo | 6 premium members |
 | Copilot Enterprise | $39/seat/mo | |
 | Copilot Business | $19/seat/mo | |
-| Replit | $25/seat/mo | Plus agent + infra usage |
+| Replit | $25/seat/mo | Pool model: total on usage page includes everything |
+| OpenAI | N/A | API-based, per-user token usage × model pricing |
