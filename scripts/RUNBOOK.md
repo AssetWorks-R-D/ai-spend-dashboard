@@ -5,7 +5,19 @@ On-demand usage data refresh for the AI Spend Dashboard. All scripts run from th
 npx dotenv -e .env.local -- npx tsx scripts/<script>.ts
 ```
 
-## Quick Refresh (every few days)
+## Daily Diff Sync (recommended)
+
+The unified sync command fetches all API vendors, computes deltas from the last snapshot, and writes daily records:
+```
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-all.ts
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-all.ts --dry-run       # preview
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-all.ts --api-only      # skip scrapers
+npx dotenv-cli -e .env.local -- npx tsx scripts/sync-all.ts --vendor cursor # single vendor
+```
+
+**First run** saves a baseline snapshot (no records written). Subsequent runs compute deltas and write daily records. Scraper vendors (Claude, Replit) still need to be run individually — see below.
+
+## Individual Vendor Refresh
 
 ### 1. Copilot (automatic via API)
 Copilot seats sync automatically via the adapter when you trigger a sync from the Admin > Vendor Config page. The adapter fetches seat assignments from `GET /orgs/{org}/copilot/billing/seats` and stores $39/seat (enterprise) or $19/seat (business).

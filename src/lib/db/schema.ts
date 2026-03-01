@@ -4,6 +4,7 @@ import {
   timestamp,
   boolean,
   integer,
+  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -198,6 +199,15 @@ export const vendorConfigs = pgTable(
     index("idx_vendor_configs_tenant_vendor").on(table.tenantId, table.vendor),
   ]
 );
+
+// ─── Vendor Snapshots (Daily Diff Sync) ──────────────────────────────────────
+
+export const vendorSnapshots = pgTable("vendor_snapshots", {
+  vendor: text("vendor").primaryKey(), // VendorType
+  snapshot: jsonb("snapshot").notNull(), // latest per-member cumulative data
+  previousSnapshot: jsonb("previous_snapshot"), // end-of-prior-day state (diff base)
+  capturedAt: timestamp("captured_at").notNull().defaultNow(),
+});
 
 // ─── Badges (Sprint 4) ────────────────────────────────────────────────────────
 
