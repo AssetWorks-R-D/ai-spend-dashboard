@@ -28,6 +28,10 @@ import {
   navigateAndExtractText,
   parseDollarsToCents,
 } from "./lib/scraper-helpers";
+import type { VendorSnapshot, MemberSnapshot } from "./lib/snapshot-store";
+import { loadDiffBase, saveSnapshot, computeDiff } from "./lib/snapshot-store";
+import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords } from "./lib/daily-sync-db";
+import { VENDOR_SEAT_COSTS } from "./lib/vendor-fetchers";
 
 // ─── Config ──────────────────────────────────────────────────
 
@@ -246,56 +250,57 @@ async function main() {
     console.log(`  Pool remainder (unattributed): $${(poolRemainderCents / 100).toFixed(2)}`);
     console.log(`  Vendor card will show: $${(Math.max(poolTotalCents, seatsTotalCents) / 100).toFixed(2)}`);
 
+    // 5b. Build snapshot (pool usage only — no seat costs)
+    //     For Replit's pool model, we track the total pool spend minus seat costs
+    //     as the "overage" snapshot. Individual members get $0 since usage is pooled.
+    console.log("\n5b. Building overage snapshot...");
+    const snapshotMembers: MemberSnapshot[] = parsedMembers.map((rm) => ({
+      vendorEmail: rm.email,
+      vendorUsername: rm.username,
+      spendCents: 0, // Replit doesn't attribute usage to individuals
+      tokens: null,
+    }));
+
+    // The pool remainder (total - seats) is tracked at the vendor level
+    const snapshot: VendorSnapshot = {
+      vendor: "replit",
+      members: snapshotMembers,
+      vendorTotalCents: poolRemainderCents, // Overage beyond seat costs
+    };
+
     if (DRY_RUN) {
+      console.log(`  Would save snapshot with ${snapshotMembers.length} members, pool: $${(poolRemainderCents / 100).toFixed(2)}`);
       console.log("\n=== DRY RUN COMPLETE — no DB changes made ===");
       await close();
       return;
     }
 
-    // 6. Write to DB
-    console.log("\n6. Writing to database...");
+    // 6. Write to DB via daily diff pipeline
+    console.log("\n6. Running daily diff pipeline...");
     const sql = neon(process.env.DATABASE_URL!);
     const db = drizzle(sql);
 
     const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "assetworks"));
     if (!tenant) { console.error("Tenant 'assetworks' not found!"); process.exit(1); }
+    const tenantId = tenant.id;
 
-    // Period: current month in UTC
-    const now = new Date();
-    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
-
-    console.log(`  Period: ${periodStart.toISOString()} → ${periodEnd.toISOString()}`);
-
-    // Delete existing Replit records for this period (both manual and scraper)
-    const deleted = await sql`
-      DELETE FROM usage_records
-      WHERE vendor = 'replit'
-        AND tenant_id = ${tenant.id}
-        AND period_start = ${periodStart.toISOString()}
-      RETURNING id
-    `;
-    console.log(`  Deleted ${deleted.length} existing Replit records`);
-
+    // Ensure members and identities exist
     let membersCreated = 0;
     let membersUpdated = 0;
     let identitiesAdded = 0;
 
     for (const rm of parsedMembers) {
-      // Try to find member by email or by name
       let existing;
       if (rm.email) {
         existing = await db.select().from(members)
-          .where(and(eq(members.email, rm.email), eq(members.tenantId, tenant.id)));
+          .where(and(eq(members.email, rm.email), eq(members.tenantId, tenantId)));
       }
 
-      // Fallback: match by name (Replit doesn't always show emails)
       if (!existing || existing.length === 0) {
         existing = await db.select().from(members)
-          .where(and(eq(members.name, rm.name), eq(members.tenantId, tenant.id)));
+          .where(and(eq(members.name, rm.name), eq(members.tenantId, tenantId)));
       }
 
-      // Fallback: match by existing replit identity username
       if (!existing || existing.length === 0) {
         const identity = await sql`
           SELECT mi.member_id FROM member_identities mi
@@ -309,20 +314,17 @@ async function main() {
       }
 
       let memberId: string;
-
       if (existing && existing.length > 0) {
         memberId = existing[0].id;
         membersUpdated++;
       } else {
-        // Create member — we need an email, derive from username if not available
         memberId = crypto.randomUUID();
         const email = rm.email || `${rm.username}@replit-user.local`;
-        await db.insert(members).values({ id: memberId, tenantId: tenant.id, name: rm.name, email });
+        await db.insert(members).values({ id: memberId, tenantId, name: rm.name, email });
         membersCreated++;
         console.log(`    + New member: ${rm.name}`);
       }
 
-      // Ensure Replit identity exists
       const existingIdentity = await db.select().from(memberIdentities)
         .where(and(eq(memberIdentities.memberId, memberId), eq(memberIdentities.vendor, "replit")));
 
@@ -336,45 +338,52 @@ async function main() {
         });
         identitiesAdded++;
       }
-
-      // Insert $25 subscription record
-      await db.insert(usageRecords).values({
-        id: crypto.randomUUID(),
-        tenantId: tenant.id,
-        memberId,
-        vendor: "replit",
-        spendCents: SEAT_COST_CENTS,
-        tokens: null,
-        periodStart,
-        periodEnd,
-        confidence: "high",
-        sourceType: "manual",
-        vendorUsername: rm.username,
-        vendorEmail: rm.email,
-      });
     }
 
-    // Insert pool remainder as unattributed (if any)
-    if (poolRemainderCents > 0) {
-      await db.insert(usageRecords).values({
-        id: crypto.randomUUID(),
-        tenantId: tenant.id,
-        memberId: null,
-        vendor: "replit",
-        spendCents: poolRemainderCents,
-        tokens: null,
-        periodStart,
-        periodEnd,
-        confidence: "medium",
-        sourceType: "scraper",
-        vendorUsername: "pool:usage",
-      });
-      console.log(`  + Pool remainder: $${(poolRemainderCents / 100).toFixed(2)} (unattributed)`);
-    }
-
-    console.log(`\n  Members: ${membersCreated} created, ${membersUpdated} existing`);
+    console.log(`  Members: ${membersCreated} created, ${membersUpdated} existing`);
     console.log(`  Identities: ${identitiesAdded} added`);
-    console.log(`  Usage records: ${parsedMembers.length} seats + ${poolRemainderCents > 0 ? 1 : 0} pool = ${parsedMembers.length + (poolRemainderCents > 0 ? 1 : 0)} total`);
+
+    // Daily diff: load previous snapshot, compute delta, write records
+    const diffBase = await loadDiffBase(db, "replit");
+
+    if (!diffBase) {
+      console.log(`  💾 First run — saving baseline snapshot (${snapshot.members.length} members, pool: $${(poolRemainderCents / 100).toFixed(2)})`);
+      await saveSnapshot(db, "replit", snapshot);
+      console.log(`  ℹ️  Run again later to capture daily deltas`);
+    } else {
+      const diff = computeDiff(snapshot, diffBase);
+
+      // For Replit pool model: write vendor-level delta as unattributed record
+      if (diff.vendorTotalDeltaCents && diff.vendorTotalDeltaCents > 0) {
+        console.log(`  Δ Pool usage: +$${(diff.vendorTotalDeltaCents / 100).toFixed(2)}`);
+        const poolRecords = [{
+          vendor: "replit" as const,
+          vendorEmail: null,
+          vendorUsername: "pool:usage",
+          spendCents: diff.vendorTotalDeltaCents,
+          tokens: null,
+          confidence: "medium" as const,
+          sourceType: "scraper" as const,
+        }];
+        const count = await writeDailyRecords(db, tenantId, poolRecords);
+        console.log(`  📝 Wrote ${count} pool usage record`);
+      } else {
+        console.log(`  ⏸️  No pool usage changes since last sync`);
+      }
+
+      await saveSnapshot(db, "replit", snapshot);
+      console.log(`  💾 Saved snapshot`);
+    }
+
+    // Write seat costs on first sync of calendar month
+    const seatConfig = VENDOR_SEAT_COSTS["replit"];
+    if (seatConfig?.defaultCents) {
+      const seatCount = await writeSeatCostRecords(db, tenantId, "replit", seatConfig.defaultCents, snapshot.members);
+      if (seatCount > 0) {
+        console.log(`  🪑 Wrote ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+      }
+    }
+
     console.log(`\n=== REPLIT SYNC COMPLETE ===`);
   } finally {
     await close();

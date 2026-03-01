@@ -39,8 +39,8 @@ export const VENDOR_COLORS: Record<VendorType, VendorColor> = {
     textOnPrimary: "#FFFFFF",
   },
   openai: {
-    primary: "#000000",
-    accent: "#10A37F",
+    primary: "#10A37F",
+    accent: "#0D8C6D",
     background: "#F0FDF9",
     textOnPrimary: "#FFFFFF",
   },

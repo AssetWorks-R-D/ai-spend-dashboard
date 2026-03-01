@@ -1,6 +1,6 @@
 export type ApiVendor = "cursor" | "claude" | "copilot" | "kiro" | "replit" | "openai";
 export type VendorType = ApiVendor;
-export type SourceType = "api" | "manual" | "scraper";
+export type SourceType = "api" | "manual" | "scraper" | "seat";
 export type Confidence = "high" | "medium" | "low";
 export type UserRole = "admin" | "viewer";
 export type LeaderboardDisplayMode = "named" | "initialed" | "anonymous";

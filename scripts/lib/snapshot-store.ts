@@ -21,6 +21,9 @@ export interface MemberSnapshot {
   spendCents: number;
   /** Cumulative tokens (null if not tracked) */
   tokens: number | null;
+  /** Per-member seat cost override (e.g., Claude standard=$25 vs premium=$100).
+   *  When set, writeSeatCostRecords uses this instead of the vendor default. */
+  seatCostCents?: number;
 }
 
 /** Full vendor snapshot: array of member data + metadata */

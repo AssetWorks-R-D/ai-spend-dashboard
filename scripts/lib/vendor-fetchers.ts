@@ -4,7 +4,10 @@
  * These call the same vendor APIs as the Next.js adapters but are standalone
  * (no @/ path aliases) so they work in scripts run via `npx tsx`.
  *
- * Each fetcher returns a VendorSnapshot (per-member cumulative data).
+ * Each fetcher returns a VendorSnapshot with OVERAGE ONLY (no seat costs).
+ * Seat costs are written separately on the first sync of each calendar month
+ * by the orchestrator (sync-all.ts). This prevents double-counting when
+ * vendor billing cycles don't align with calendar months.
  */
 import type { VendorSnapshot, MemberSnapshot } from "./snapshot-store";
 
@@ -13,6 +16,25 @@ import type { VendorSnapshot, MemberSnapshot } from "./snapshot-store";
 interface VendorCredentials {
   [key: string]: string;
 }
+
+// ─── Seat Cost Config ───────────────────────────────────────────
+
+export interface SeatCostConfig {
+  /** Default seat cost in cents (null = no seat cost, e.g., OpenAI) */
+  defaultCents: number | null;
+  /** Map of plan_type → cents for vendors with multiple tiers (e.g., Copilot) */
+  tiers?: Record<string, number>;
+}
+
+/** Seat cost configuration per vendor. Used by the orchestrator to write
+ *  seat-cost records on the first sync of each calendar month. */
+export const VENDOR_SEAT_COSTS: Record<string, SeatCostConfig> = {
+  cursor: { defaultCents: 4000 },          // $40/seat
+  copilot: { defaultCents: 3900, tiers: { enterprise: 3900, business: 1900 } },
+  openai: { defaultCents: null },           // Pure usage, no seat cost
+  claude: { defaultCents: 2500, tiers: { standard: 2500, premium: 10000 } },
+  replit: { defaultCents: 2500 },           // $25/seat
+};
 
 // ─── Cursor ─────────────────────────────────────────────────────
 
@@ -37,13 +59,13 @@ export async function fetchCursorSnapshot(credentials: VendorCredentials): Promi
 
   const members: MemberSnapshot[] = [];
   for (const m of data.teamMemberSpend || []) {
-    // spendCents = on-demand overage; seat fee baked in
-    const totalSpendCents = (m.spendCents || 0) + CURSOR_SEAT_CENTS;
+    // Overage only — seat costs written separately on month boundary
+    const overageCents = m.spendCents || 0;
     members.push({
       vendorEmail: m.email || null,
       vendorUsername: m.name || null,
-      spendCents: totalSpendCents,
-      tokens: estimateTokens(totalSpendCents),
+      spendCents: overageCents,
+      tokens: estimateTokens(overageCents),
     });
   }
 
@@ -80,11 +102,12 @@ export async function fetchCopilotSnapshot(credentials: VendorCredentials): Prom
   for (const seat of allSeats) {
     const login = seat.assignee?.login;
     if (!login) continue;
-    const seatCostCents = seat.plan_type === "enterprise" ? 3900 : 1900;
+    // Copilot is pure subscription — no variable usage to track.
+    // Seat costs written separately on month boundary.
     members.push({
       vendorEmail: seat.assignee?.email || null,
       vendorUsername: login,
-      spendCents: seatCostCents,
+      spendCents: 0,
       tokens: null,
     });
   }

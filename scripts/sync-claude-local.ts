@@ -22,6 +22,10 @@ import {
   addAntiDetection,
   parseDollarsToCents,
 } from "./lib/scraper-helpers";
+import type { VendorSnapshot, MemberSnapshot } from "./lib/snapshot-store";
+import { loadDiffBase, saveSnapshot, computeDiff } from "./lib/snapshot-store";
+import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords } from "./lib/daily-sync-db";
+import { VENDOR_SEAT_COSTS } from "./lib/vendor-fetchers";
 
 // ─── Config ──────────────────────────────────────────────────
 
@@ -426,50 +430,44 @@ async function main() {
       console.log(`  ${m.name}: $${(m.seatCents / 100).toFixed(2)} seat${overageStr} = $${(m.totalCents / 100).toFixed(2)} [${tierLabel}]`);
     }
 
+    // 7. Build snapshot (overage only — seat costs written separately)
+    console.log("\n7. Building overage snapshot...");
+    const snapshotMembers: MemberSnapshot[] = merged.map((m) => ({
+      vendorEmail: m.email,
+      vendorUsername: m.name,
+      spendCents: m.overageCents, // Overage only, no seat costs
+      tokens: estimateTokens(m.overageCents),
+      seatCostCents: m.seatCents, // $25 standard or $100 premium
+    }));
+
+    const snapshot: VendorSnapshot = { vendor: "claude", members: snapshotMembers };
+
     if (DRY_RUN) {
+      console.log(`  Would save snapshot with ${snapshotMembers.length} members`);
       console.log("\n=== DRY RUN COMPLETE — no DB changes made ===");
       await close();
       return;
     }
 
-    // 7. Write to DB
-    console.log("\n7. Writing to database...");
+    // 8. Write to DB via daily diff pipeline
+    console.log("\n8. Running daily diff pipeline...");
     const sql = neon(process.env.DATABASE_URL!);
     const db = drizzle(sql);
 
     const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, "assetworks"));
     if (!tenant) { console.error("Tenant 'assetworks' not found!"); process.exit(1); }
+    const tenantId = tenant.id;
 
-    // Period: current month in UTC
-    const now = new Date();
-    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
-
-    console.log(`  Period: ${periodStart.toISOString()} → ${periodEnd.toISOString()}`);
-
-    // Delete existing Claude scraper records for this period
-    const deleted = await sql`
-      DELETE FROM usage_records
-      WHERE vendor = 'claude'
-        AND source_type = 'scraper'
-        AND tenant_id = ${tenant.id}
-        AND period_start = ${periodStart.toISOString()}
-      RETURNING id
-    `;
-    console.log(`  Deleted ${deleted.length} existing Claude scraper records`);
-
+    // Ensure members and identities exist
     let membersCreated = 0;
     let membersUpdated = 0;
     let identitiesAdded = 0;
-    let usageCreated = 0;
 
     for (const m of merged) {
-      // Find or create member
       const existing = await db.select().from(members)
-        .where(and(eq(members.email, m.email), eq(members.tenantId, tenant.id)));
+        .where(and(eq(members.email, m.email), eq(members.tenantId, tenantId)));
 
       let memberId: string;
-
       if (existing.length > 0) {
         memberId = existing[0].id;
         if (existing[0].name !== m.name) {
@@ -478,11 +476,10 @@ async function main() {
         membersUpdated++;
       } else {
         memberId = crypto.randomUUID();
-        await db.insert(members).values({ id: memberId, tenantId: tenant.id, name: m.name, email: m.email });
+        await db.insert(members).values({ id: memberId, tenantId, name: m.name, email: m.email });
         membersCreated++;
       }
 
-      // Ensure Claude identity exists
       const existingIdentity = await db.select().from(memberIdentities)
         .where(and(eq(memberIdentities.memberId, memberId), eq(memberIdentities.vendor, "claude")));
 
@@ -496,29 +493,54 @@ async function main() {
         });
         identitiesAdded++;
       }
-
-      // Insert usage record
-      const tokens = estimateTokens(m.totalCents);
-      await db.insert(usageRecords).values({
-        id: crypto.randomUUID(),
-        tenantId: tenant.id,
-        memberId,
-        vendor: "claude",
-        spendCents: m.totalCents,
-        tokens,
-        periodStart,
-        periodEnd,
-        confidence: m.overageCents > 0 ? "high" : "medium",
-        sourceType: "scraper",
-        vendorUsername: m.name,
-        vendorEmail: m.email,
-      });
-      usageCreated++;
     }
 
-    console.log(`\n  Members: ${membersCreated} created, ${membersUpdated} updated`);
+    console.log(`  Members: ${membersCreated} created, ${membersUpdated} existing`);
     console.log(`  Identities: ${identitiesAdded} added`);
-    console.log(`  Usage records: ${usageCreated} created`);
+
+    // Daily diff: load previous snapshot, compute delta, write records
+    const diffBase = await loadDiffBase(db, "claude");
+
+    if (!diffBase) {
+      console.log(`  💾 First run — saving baseline snapshot (${snapshot.members.length} members)`);
+      await saveSnapshot(db, "claude", snapshot);
+      console.log(`  ℹ️  Run again later to capture daily deltas`);
+    } else {
+      const diff = computeDiff(snapshot, diffBase);
+      const records = deltasToRecords("claude", diff.deltas, diff.newMembers, "scraper");
+
+      if (diff.deltas.length === 0 && diff.newMembers.length === 0) {
+        console.log(`  ⏸️  No changes since last sync`);
+      } else {
+        for (const d of diff.deltas) {
+          const name = d.vendorUsername || d.vendorEmail || "(unknown)";
+          const reset = d.billingReset ? " [BILLING RESET]" : "";
+          console.log(`  Δ ${name}: +$${(d.deltaSpendCents / 100).toFixed(2)}${reset}`);
+        }
+        for (const m of diff.newMembers) {
+          const name = m.vendorUsername || m.vendorEmail || "(unknown)";
+          console.log(`  + ${name}: $${(m.spendCents / 100).toFixed(2)} (new member)`);
+        }
+      }
+
+      if (records.length > 0) {
+        const count = await writeDailyRecords(db, tenantId, records);
+        console.log(`  📝 Wrote ${count} daily records`);
+      }
+
+      await saveSnapshot(db, "claude", snapshot);
+      console.log(`  💾 Saved snapshot`);
+    }
+
+    // Write seat costs on first sync of calendar month
+    const seatConfig = VENDOR_SEAT_COSTS["claude"];
+    if (seatConfig?.defaultCents) {
+      const seatCount = await writeSeatCostRecords(db, tenantId, "claude", seatConfig.defaultCents, snapshot.members);
+      if (seatCount > 0) {
+        console.log(`  🪑 Wrote ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+      }
+    }
+
     console.log(`\n=== CLAUDE SYNC COMPLETE ===`);
   } finally {
     await close();

@@ -159,7 +159,7 @@ export const usageRecords = pgTable(
     periodStart: timestamp("period_start").notNull(),
     periodEnd: timestamp("period_end").notNull(),
     confidence: text("confidence").notNull().default("high"), // 'high' | 'medium' | 'low'
-    sourceType: text("source_type").notNull().default("api"), // 'api' | 'manual' | 'scraper'
+    sourceType: text("source_type").notNull().default("api"), // 'api' | 'manual' | 'scraper' | 'seat'
     vendorUsername: text("vendor_username"),
     vendorEmail: text("vendor_email"),
     syncedAt: timestamp("synced_at").notNull().defaultNow(),

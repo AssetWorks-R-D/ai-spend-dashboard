@@ -147,6 +147,72 @@ export async function writeDailyRecords(
   return records.length;
 }
 
+// ─── Seat Cost Records ─────────────────────────────────────────
+
+/**
+ * Write monthly seat-cost records for a vendor.
+ * Called on the first sync of each calendar month.
+ * Only writes seats for members present in the snapshot (actual vendor users).
+ * Each member gets one record with periodStart = periodEnd = 1st of month.
+ */
+export async function writeSeatCostRecords(
+  db: NeonHttpDatabase,
+  tenantId: string,
+  vendor: ApiVendor,
+  seatCostCents: number,
+  snapshotMembers: MemberSnapshot[],
+  options: { dryRun?: boolean } = {},
+): Promise<number> {
+  if (snapshotMembers.length === 0) return 0;
+
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  // Check if seat records already exist for this month + vendor
+  const existing = await db
+    .select({ id: usageRecords.id })
+    .from(usageRecords)
+    .where(
+      and(
+        eq(usageRecords.tenantId, tenantId),
+        eq(usageRecords.vendor, vendor),
+        eq(usageRecords.sourceType, "seat"),
+        eq(usageRecords.periodStart, monthStart),
+      ),
+    );
+
+  if (existing.length > 0) {
+    return 0; // Already written this month
+  }
+
+  if (options.dryRun) return snapshotMembers.length;
+
+  const lookup = await buildMemberLookup(db, tenantId, vendor);
+
+  let written = 0;
+  for (const sm of snapshotMembers) {
+    const memberId = lookup.resolve(sm.vendorEmail, sm.vendorUsername);
+
+    await db.insert(usageRecords).values({
+      id: crypto.randomUUID(),
+      tenantId,
+      memberId,
+      vendor,
+      spendCents: sm.seatCostCents ?? seatCostCents,
+      tokens: null,
+      periodStart: monthStart,
+      periodEnd: monthStart,
+      confidence: "high",
+      sourceType: "seat",
+      vendorEmail: sm.vendorEmail,
+      vendorUsername: sm.vendorUsername,
+    });
+    written++;
+  }
+
+  return written;
+}
+
 /**
  * Convert deltas + new members into DailyRecord array.
  */

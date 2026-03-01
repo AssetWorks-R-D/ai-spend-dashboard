@@ -30,12 +30,14 @@ import {
 import {
   getTenantId,
   writeDailyRecords,
+  writeSeatCostRecords,
   deltasToRecords,
 } from "./lib/daily-sync-db";
 import {
   fetchCursorSnapshot,
   fetchCopilotSnapshot,
   fetchOpenAISnapshot,
+  VENDOR_SEAT_COSTS,
 } from "./lib/vendor-fetchers";
 
 // ─── Config ─────────────────────────────────────────────────────
@@ -82,6 +84,15 @@ async function syncVendor(
   tenantId: string,
 ): Promise<void> {
   const diffBase = await loadDiffBase(db, vendor);
+
+  // Write seat costs on first sync of each calendar month (before early return)
+  const seatConfig = VENDOR_SEAT_COSTS[vendor];
+  if (seatConfig?.defaultCents) {
+    const seatCount = await writeSeatCostRecords(db, tenantId, vendor, seatConfig.defaultCents, snapshot.members, { dryRun });
+    if (seatCount > 0) {
+      console.log(`  🪑 ${dryRun ? "Would write" : "Wrote"} ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+    }
+  }
 
   if (!diffBase) {
     // First run: save baseline, no delta records
