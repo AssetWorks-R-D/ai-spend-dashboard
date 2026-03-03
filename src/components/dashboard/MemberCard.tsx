@@ -50,11 +50,11 @@ export function MemberCard({
 
   return (
     <Card
-      className={
+      className={`transition-shadow duration-200 hover:shadow-(--card-shadow-hover) ${
         isCurrentUser
-          ? "border-amber-400 bg-[var(--highlight-bg)] shadow-[var(--highlight-glow)]"
+          ? "border-2 border-amber-400 bg-(--highlight-bg) shadow-(--highlight-glow) ring-2 ring-amber-200/40"
           : ""
-      }
+      }`}
     >
       <CardContent className="p-4">
         {/* Header: Avatar + Name */}

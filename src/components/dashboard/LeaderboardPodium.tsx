@@ -21,7 +21,7 @@ interface LeaderboardPodiumProps {
 }
 
 const RANK_STYLES: Record<number, { medal: string; bg: string }> = {
-  1: { medal: "🥇", bg: "bg-amber-50 border-amber-300" },
+  1: { medal: "🥇", bg: "bg-amber-50 border-amber-300 shadow-sm" },
   2: { medal: "🥈", bg: "bg-gray-50 border-gray-300" },
   3: { medal: "🥉", bg: "bg-orange-50 border-orange-300" },
 };
@@ -49,16 +49,25 @@ export function LeaderboardPodium({
         Leaderboard
       </h3>
       <div className="space-y-1.5">
-        {top.map((entry) => {
+        {top.map((entry, index) => {
           const style = RANK_STYLES[entry.rank];
+          const isFirst = entry.rank === 1;
           return (
             <div
               key={entry.memberId}
-              className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${
+              className="stagger-enter"
+              style={{ animationDelay: `${index * 60}ms` }}
+            >
+            <div
+              className={`flex items-center gap-3 rounded-lg border px-4 ${
+                isFirst ? "py-3" : "py-2.5"
+              } ${
                 style?.bg || "bg-(--card-bg) border-(--card-border)"
               }`}
             >
-              <span className="w-8 text-center text-sm font-bold text-(--text-primary)">
+              <span className={`w-8 text-center font-bold text-(--text-primary) ${
+                isFirst ? "text-base" : "text-sm"
+              }`}>
                 {style?.medal || `#${entry.rank}`}
               </span>
               <div className="flex-1 min-w-0">
@@ -79,6 +88,7 @@ export function LeaderboardPodium({
                 )}
                 <GrowthArrow rankChange={entry.rankChange} />
               </div>
+            </div>
             </div>
           );
         })}

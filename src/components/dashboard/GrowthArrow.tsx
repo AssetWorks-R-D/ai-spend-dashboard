@@ -9,7 +9,10 @@ export function GrowthArrow({ rankChange }: GrowthArrowProps) {
 
   if (rankChange > 0) {
     return (
-      <span className="text-xs font-medium text-green-600">
+      <span
+        className="text-xs font-medium text-green-600"
+        style={{ animation: "bounce-up 400ms ease-out both" }}
+      >
         ▲ {rankChange}
       </span>
     );

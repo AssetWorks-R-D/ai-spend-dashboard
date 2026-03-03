@@ -33,15 +33,20 @@ export function CardsView({ memberCards, currentUserMemberId }: CardsViewProps) 
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-      {memberCards.map((card) => (
-        <MemberCard
+      {memberCards.map((card, index) => (
+        <div
           key={card.memberId}
-          memberId={card.memberId}
-          memberName={card.memberName}
-          totalSpendCents={card.totalSpendCents}
-          vendors={card.vendors}
-          isCurrentUser={card.memberId === currentUserMemberId}
-        />
+          className="stagger-enter"
+          style={{ animationDelay: `${Math.min(index * 50, 600)}ms` }}
+        >
+          <MemberCard
+            memberId={card.memberId}
+            memberName={card.memberName}
+            totalSpendCents={card.totalSpendCents}
+            vendors={card.vendors}
+            isCurrentUser={card.memberId === currentUserMemberId}
+          />
+        </div>
       ))}
     </div>
   );

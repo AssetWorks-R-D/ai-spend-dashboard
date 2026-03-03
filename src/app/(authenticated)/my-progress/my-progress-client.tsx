@@ -106,7 +106,7 @@ export function MyProgressClient({ memberId, userName }: MyProgressClientProps) 
   const earnedTypes = new Set(earnedBadges.map((b) => b.badgeType));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <h1 className="text-2xl font-bold text-(--text-primary)">My Progress</h1>
 
       {/* Rank + Achievements Row */}
@@ -120,7 +120,7 @@ export function MyProgressClient({ memberId, userName }: MyProgressClientProps) 
             <CardContent className="space-y-3">
               <div className="flex items-center gap-5">
                 <div>
-                  <div className="text-3xl font-bold text-(--text-primary)">
+                  <div className="text-5xl font-bold text-(--text-primary)">
                     #{myRanking.rank}
                   </div>
                   <div className="text-xs text-(--text-secondary)">
@@ -166,15 +166,20 @@ export function MyProgressClient({ memberId, userName }: MyProgressClientProps) 
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {allBadgeDefs.map((def) => {
+              {allBadgeDefs.map((def, index) => {
                 const earned = earnedBadges.find((b) => b.badgeType === def.type);
                 return (
-                  <BadgeCard
+                  <div
                     key={def.type}
-                    badge={def}
-                    earned={earnedTypes.has(def.type)}
-                    earnedAt={earned?.earnedAt}
-                  />
+                    className="stagger-enter"
+                    style={{ animationDelay: `${index * 80}ms` }}
+                  >
+                    <BadgeCard
+                      badge={def}
+                      earned={earnedTypes.has(def.type)}
+                      earnedAt={earned?.earnedAt}
+                    />
+                  </div>
                 );
               })}
             </div>

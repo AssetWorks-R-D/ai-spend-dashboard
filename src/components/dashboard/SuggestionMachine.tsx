@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 const THINKING_MESSAGES = [
   "Consulting the oracle...",
@@ -120,11 +119,16 @@ export function SuggestionMachine({ memberId, period, memberName }: SuggestionMa
     return <div className="text-sm text-(--text-secondary)">Loading insight...</div>;
   }
 
+  const monthLabel = new Date(period + "-01").toLocaleDateString("en-US", {
+    month: "long",
+  });
+  const monthYearLabel = new Date(period + "-01").toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
   // No cached content — show CTA
   if (!content && !streaming) {
-    const monthLabel = new Date(period + "-01").toLocaleDateString("en-US", {
-      month: "long",
-    });
     return (
       <Button variant="outline" onClick={generate} className="w-full">
         Generate your {monthLabel} insight
@@ -135,44 +139,53 @@ export function SuggestionMachine({ memberId, period, memberName }: SuggestionMa
   // Streaming thinking state
   if (streaming && !content) {
     return (
-      <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-        <CardContent className="py-4">
-          <p className="text-sm text-amber-700 animate-pulse">
-            {THINKING_MESSAGES[thinkingIndex]}
-          </p>
-        </CardContent>
-      </Card>
+      <div
+        className="max-w-120 min-h-40 rounded-xl border p-6 flex items-center justify-center"
+        style={{
+          background: "linear-gradient(135deg, #FFFBF0 0%, #FFF5E6 100%)",
+          borderColor: "#E8DFD0",
+        }}
+      >
+        <p className="text-sm text-amber-700 animate-pulse">
+          {THINKING_MESSAGES[thinkingIndex]}
+        </p>
+      </div>
     );
   }
 
   // Show content (streaming or cached)
   return (
-    <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 max-w-lg">
-      <CardContent className="py-4 space-y-3">
-        <p className="text-sm text-(--text-primary) leading-relaxed whitespace-pre-wrap">
-          {content}
-          {streaming && <span className="animate-pulse">|</span>}
-        </p>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-(--text-secondary)">
-            Burnboard · {new Date(period + "-01").toLocaleDateString("en-US", {
-              month: "long",
-              year: "numeric",
-            })}
-          </span>
-          {!streaming && (
-            <Button variant="ghost" size="sm" onClick={regenerate} className="text-xs">
-              Regenerate
-            </Button>
-          )}
-        </div>
-        {generatedAt && !streaming && (
-          <p className="text-xs text-(--text-secondary)">
-            Generated {new Date(generatedAt).toLocaleDateString()}
-          </p>
+    <div
+      className="max-w-120 min-h-40 rounded-xl border p-6 space-y-4"
+      style={{
+        background: "linear-gradient(135deg, #FFFBF0 0%, #FFF5E6 100%)",
+        borderColor: "#E8DFD0",
+      }}
+    >
+      <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-700/70">
+        Your {monthLabel} Insight
+      </h4>
+      <p className="text-sm text-(--text-primary) leading-relaxed whitespace-pre-wrap">
+        {content}
+        {streaming && <span className="text-amber-600 animate-pulse">|</span>}
+      </p>
+      <div
+        className="border-t pt-3 flex items-center justify-between"
+        style={{ borderColor: "#E8DFD0" }}
+      >
+        <span className="text-[11px] italic" style={{ color: "#A39E96" }}>
+          Burnboard · {monthYearLabel}
+        </span>
+        {!streaming && (
+          <button
+            onClick={regenerate}
+            className="text-[11px] font-medium text-amber-700/60 hover:text-amber-700 transition-colors"
+          >
+            Regenerate &#8635;
+          </button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

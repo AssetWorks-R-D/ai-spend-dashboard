@@ -11,11 +11,12 @@ export function BadgeCard({ badge, earned, earnedAt }: BadgeCardProps) {
     <div
       className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
         earned
-          ? "bg-(--card-bg) border-(--card-border)"
-          : "bg-gray-50 border-gray-200 opacity-50"
+          ? "bg-linear-to-r from-amber-50/80 to-yellow-50/50 border-amber-200/60 shadow-sm"
+          : "bg-gray-50/80 border-gray-200 opacity-40 grayscale"
       }`}
+      style={earned ? { animation: 'badge-glow 2s ease-in-out infinite' } : undefined}
     >
-      <span className="text-2xl" role="img" aria-label={badge.name}>
+      <span className={`text-2xl shrink-0 ${earned ? "drop-shadow-sm" : ""}`} role="img" aria-label={badge.name}>
         {badge.icon}
       </span>
       <div className="min-w-0">

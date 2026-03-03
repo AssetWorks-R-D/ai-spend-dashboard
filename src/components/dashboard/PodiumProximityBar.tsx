@@ -16,7 +16,7 @@ export function PodiumProximityBar({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-(--text-primary)">
+        <span className={`font-medium ${onPodium ? "text-amber-700" : "text-(--text-primary)"}`}>
           {onPodium
             ? "You're on the podium!"
             : `${spotsFromPodium} spot${spotsFromPodium !== 1 ? "s" : ""} from the top ${podiumSize}`}
@@ -27,12 +27,15 @@ export function PodiumProximityBar({
       </div>
       <div className="h-2 w-full rounded-full bg-gray-200">
         <div
-          className={`h-2 rounded-full transition-all ${
+          className={`h-2 rounded-full ${
             onPodium
-              ? "bg-gradient-to-r from-amber-400 to-amber-500"
-              : "bg-gradient-to-r from-blue-400 to-blue-500"
+              ? "bg-linear-to-r from-amber-400 to-amber-500"
+              : "bg-linear-to-r from-blue-400 to-blue-500"
           }`}
-          style={{ width: `${progress}%` }}
+          style={{
+            width: `${progress}%`,
+            animation: "bar-fill 800ms ease-out both",
+          }}
         />
       </div>
     </div>

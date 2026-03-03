@@ -20,6 +20,8 @@ export function ToolPill({ vendor, spendCents, tokens }: ToolPillProps) {
         backgroundColor: isInactive ? "#F3F4F6" : colors.background,
         borderWidth: 1,
         borderColor: isInactive ? "#E5E7EB" : colors.primary + "30",
+        borderLeftWidth: isInactive ? 1 : 3,
+        borderLeftColor: isInactive ? "#E5E7EB" : colors.primary,
         opacity: isInactive ? 0.5 : 1,
       }}
     >
