@@ -1,6 +1,6 @@
 # Data Refresh Runbook
 
-On-demand usage data refresh for the AI Spend Dashboard. All scripts run from the project root with:
+On-demand usage data refresh for Burnboard. All scripts run from the project root with:
 ```
 npx dotenv -e .env.local -- npx tsx scripts/<script>.ts
 ```

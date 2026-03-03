@@ -34,7 +34,7 @@ const REPLIT_SUBSCRIPTION_CENTS = 2500;
 const AGENT_USAGE = [
   { app: "Documentation Health Dashboard (Document Intelligence)", costCents: 9252 },
   { app: "GOAMR", costCents: 3721 },
-  { app: "AI Spend Dashboard", costCents: 3620 },
+  { app: "Burnboard", costCents: 3620 },
   { app: "GOWMR (Dylan)", costCents: 2518 },
   { app: "Nostalgia Photo Booth", costCents: 956 },
   { app: "fiream", costCents: 558 },

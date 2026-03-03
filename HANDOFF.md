@@ -1,4 +1,4 @@
-# AI Spend Dashboard - Session Handoff
+# Burnboard - Session Handoff
 
 ## Project Overview
 Internal dashboard to track and consolidate AI tool spending across 4 products:

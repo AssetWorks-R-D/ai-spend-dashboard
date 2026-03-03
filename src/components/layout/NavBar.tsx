@@ -71,7 +71,7 @@ export function NavBar({ userRole, userName }: NavBarProps) {
         {/* Logo / Brand */}
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-(--text-primary)">
           <LayoutDashboard className="h-5 w-5 text-[#6C63FF]" />
-          <span className="hidden sm:inline">AI Spend</span>
+          <span className="hidden sm:inline">Burnboard</span>
         </Link>
 
         {/* Navigation Links */}

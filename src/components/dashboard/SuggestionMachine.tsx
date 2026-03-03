@@ -155,7 +155,7 @@ export function SuggestionMachine({ memberId, period, memberName }: SuggestionMa
         </p>
         <div className="flex items-center justify-between">
           <span className="text-xs text-(--text-secondary)">
-            AI Spend Dashboard · {new Date(period + "-01").toLocaleDateString("en-US", {
+            Burnboard · {new Date(period + "-01").toLocaleDateString("en-US", {
               month: "long",
               year: "numeric",
             })}

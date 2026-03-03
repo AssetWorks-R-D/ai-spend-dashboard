@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Spend Dashboard",
-  description: "Track and consolidate AI tool spending across your team",
+  title: "Burnboard",
+  description: "AI adoption dashboard for engineering teams",
 };
 
 export default function RootLayout({
