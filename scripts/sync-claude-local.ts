@@ -24,7 +24,7 @@ import {
 } from "./lib/scraper-helpers";
 import type { VendorSnapshot, MemberSnapshot } from "./lib/snapshot-store";
 import { loadDiffBase, saveSnapshot, computeDiff } from "./lib/snapshot-store";
-import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords } from "./lib/daily-sync-db";
+import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords, writeSyncAuditLog } from "./lib/daily-sync-db";
 import { VENDOR_SEAT_COSTS } from "./lib/vendor-fetchers";
 
 // ─── Config ──────────────────────────────────────────────────
@@ -500,6 +500,10 @@ async function main() {
 
     // Daily diff: load previous snapshot, compute delta, write records
     const diffBase = await loadDiffBase(db, "claude");
+    const seatConfig = VENDOR_SEAT_COSTS["claude"] ?? null;
+    let recordsWritten = 0;
+    let seatRecordsWritten = 0;
+    let diffResult = null;
 
     if (!diffBase) {
       console.log(`  💾 First run — saving baseline snapshot (${snapshot.members.length} members)`);
@@ -507,6 +511,7 @@ async function main() {
       console.log(`  ℹ️  Run again later to capture daily deltas`);
     } else {
       const diff = computeDiff(snapshot, diffBase);
+      diffResult = diff;
       const records = deltasToRecords("claude", diff.deltas, diff.newMembers, "scraper");
 
       if (diff.deltas.length === 0 && diff.newMembers.length === 0) {
@@ -524,8 +529,8 @@ async function main() {
       }
 
       if (records.length > 0) {
-        const count = await writeDailyRecords(db, tenantId, records);
-        console.log(`  📝 Wrote ${count} daily records`);
+        recordsWritten = await writeDailyRecords(db, tenantId, records);
+        console.log(`  📝 Wrote ${recordsWritten} daily records`);
       }
 
       await saveSnapshot(db, "claude", snapshot);
@@ -533,13 +538,19 @@ async function main() {
     }
 
     // Write seat costs on first sync of calendar month
-    const seatConfig = VENDOR_SEAT_COSTS["claude"];
     if (seatConfig?.defaultCents) {
-      const seatCount = await writeSeatCostRecords(db, tenantId, "claude", seatConfig.defaultCents, snapshot.members);
-      if (seatCount > 0) {
-        console.log(`  🪑 Wrote ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+      seatRecordsWritten = await writeSeatCostRecords(db, tenantId, "claude", seatConfig.defaultCents, snapshot.members);
+      if (seatRecordsWritten > 0) {
+        console.log(`  🪑 Wrote ${seatRecordsWritten} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
       }
     }
+
+    // Audit log
+    await writeSyncAuditLog(db, {
+      tenantId, vendor: "claude", sourceType: "scraper", snapshot, seatConfig,
+      diffResult, recordsWritten, seatRecordsWritten, dryRun: false,
+    });
+    console.log(`  📋 Wrote audit log entry`);
 
     console.log(`\n=== CLAUDE SYNC COMPLETE ===`);
   } finally {

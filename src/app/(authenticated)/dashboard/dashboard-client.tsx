@@ -5,7 +5,7 @@ import { KpiBar } from "@/components/dashboard/KpiBar";
 import { CardsView } from "@/components/dashboard/CardsView";
 import { SpendChart } from "@/components/dashboard/SpendChart";
 import { ViewToggle, type DashboardView } from "@/components/dashboard/ViewToggle";
-import { currentPeriodKey, periodOptions } from "@/lib/utils/date-ranges";
+import { currentPeriodKey, periodOptions, filterPeriodOptions } from "@/lib/utils/date-ranges";
 import type { VendorType, LeaderboardDisplayMode } from "@/types";
 
 interface DashboardData {
@@ -35,6 +35,7 @@ interface DashboardData {
   }[];
   period: string;
   displayMode: LeaderboardDisplayMode;
+  availablePeriods: string[];
 }
 
 interface DashboardClientProps {
@@ -47,8 +48,7 @@ export function DashboardClient({ currentUserMemberId }: DashboardClientProps) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const options = periodOptions();
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
   const fetchData = useCallback(async (p: string) => {
     setLoading(true);
@@ -61,6 +61,9 @@ export function DashboardClient({ currentUserMemberId }: DashboardClientProps) {
       }
       const json = await res.json();
       setData(json.data);
+      if (json.data.availablePeriods?.length) {
+        setAvailablePeriods(json.data.availablePeriods);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -110,7 +113,7 @@ export function DashboardClient({ currentUserMemberId }: DashboardClientProps) {
           vendorSummaries={data.vendorSummaries}
           period={period}
           onPeriodChange={handlePeriodChange}
-          periodOptions={options}
+          periodOptions={filterPeriodOptions(availablePeriods)}
         />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -133,7 +136,7 @@ export function DashboardClient({ currentUserMemberId }: DashboardClientProps) {
         ) : (
           <SpendChart
             memberCards={data.memberCards}
-            periodLabel={options.find((o) => o.key === period)?.label}
+            periodLabel={filterPeriodOptions(availablePeriods).find((o) => o.key === period)?.label}
             displayMode={data.displayMode}
           />
         )}

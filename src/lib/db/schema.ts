@@ -209,6 +209,30 @@ export const vendorSnapshots = pgTable("vendor_snapshots", {
   capturedAt: timestamp("captured_at").notNull().defaultNow(),
 });
 
+// ─── Sync Audit Log (backwards reconciliation) ──────────────────────────────
+
+export const syncAuditLog = pgTable(
+  "sync_audit_log",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    vendor: text("vendor").notNull(),
+    runAt: timestamp("run_at").notNull().defaultNow(),
+    sourceType: text("source_type").notNull(), // 'api' | 'scraper'
+    snapshot: jsonb("snapshot").notNull(), // full VendorSnapshot at time of sync
+    seatConfig: jsonb("seat_config"), // seat cost config used
+    diffResult: jsonb("diff_result"), // computed SnapshotDiff (null on first run)
+    recordsWritten: integer("records_written").notNull().default(0),
+    seatRecordsWritten: integer("seat_records_written").notNull().default(0),
+    dryRun: boolean("dry_run").notNull().default(false),
+  },
+  (table) => [
+    index("idx_sync_audit_log_vendor_run").on(table.vendor, table.runAt),
+  ]
+);
+
 // ─── Badges (Sprint 4) ────────────────────────────────────────────────────────
 
 export const badges = pgTable(

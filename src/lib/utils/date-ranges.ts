@@ -35,3 +35,16 @@ export function periodOptions(): { key: string; label: string }[] {
   }
   return options;
 }
+
+/** Filter period options to only months with data, sorted chronologically (oldest first) */
+export function filterPeriodOptions(available: string[]): { key: string; label: string }[] {
+  if (!available.length) return periodOptions();
+  return available
+    .sort()
+    .map((key) => {
+      const [year, month] = key.split("-").map(Number);
+      const d = new Date(Date.UTC(year, month - 1, 1));
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+      return { key, label };
+    });
+}

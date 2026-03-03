@@ -30,7 +30,7 @@ import {
 } from "./lib/scraper-helpers";
 import type { VendorSnapshot, MemberSnapshot } from "./lib/snapshot-store";
 import { loadDiffBase, saveSnapshot, computeDiff } from "./lib/snapshot-store";
-import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords } from "./lib/daily-sync-db";
+import { getTenantId, writeDailyRecords, writeSeatCostRecords, deltasToRecords, writeSyncAuditLog } from "./lib/daily-sync-db";
 import { VENDOR_SEAT_COSTS } from "./lib/vendor-fetchers";
 
 // ─── Config ──────────────────────────────────────────────────
@@ -345,6 +345,10 @@ async function main() {
 
     // Daily diff: load previous snapshot, compute delta, write records
     const diffBase = await loadDiffBase(db, "replit");
+    const seatConfig = VENDOR_SEAT_COSTS["replit"] ?? null;
+    let recordsWritten = 0;
+    let seatRecordsWritten = 0;
+    let diffResult = null;
 
     if (!diffBase) {
       console.log(`  💾 First run — saving baseline snapshot (${snapshot.members.length} members, pool: $${(poolRemainderCents / 100).toFixed(2)})`);
@@ -352,6 +356,7 @@ async function main() {
       console.log(`  ℹ️  Run again later to capture daily deltas`);
     } else {
       const diff = computeDiff(snapshot, diffBase);
+      diffResult = diff;
 
       // For Replit pool model: write vendor-level delta as unattributed record
       if (diff.vendorTotalDeltaCents && diff.vendorTotalDeltaCents > 0) {
@@ -365,8 +370,8 @@ async function main() {
           confidence: "medium" as const,
           sourceType: "scraper" as const,
         }];
-        const count = await writeDailyRecords(db, tenantId, poolRecords);
-        console.log(`  📝 Wrote ${count} pool usage record`);
+        recordsWritten = await writeDailyRecords(db, tenantId, poolRecords);
+        console.log(`  📝 Wrote ${recordsWritten} pool usage record`);
       } else {
         console.log(`  ⏸️  No pool usage changes since last sync`);
       }
@@ -376,13 +381,19 @@ async function main() {
     }
 
     // Write seat costs on first sync of calendar month
-    const seatConfig = VENDOR_SEAT_COSTS["replit"];
     if (seatConfig?.defaultCents) {
-      const seatCount = await writeSeatCostRecords(db, tenantId, "replit", seatConfig.defaultCents, snapshot.members);
-      if (seatCount > 0) {
-        console.log(`  🪑 Wrote ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+      seatRecordsWritten = await writeSeatCostRecords(db, tenantId, "replit", seatConfig.defaultCents, snapshot.members);
+      if (seatRecordsWritten > 0) {
+        console.log(`  🪑 Wrote ${seatRecordsWritten} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
       }
     }
+
+    // Audit log
+    await writeSyncAuditLog(db, {
+      tenantId, vendor: "replit", sourceType: "scraper", snapshot, seatConfig,
+      diffResult, recordsWritten, seatRecordsWritten, dryRun: false,
+    });
+    console.log(`  📋 Wrote audit log entry`);
 
     console.log(`\n=== REPLIT SYNC COMPLETE ===`);
   } finally {

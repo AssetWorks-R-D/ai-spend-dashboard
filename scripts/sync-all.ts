@@ -32,6 +32,7 @@ import {
   writeDailyRecords,
   writeSeatCostRecords,
   deltasToRecords,
+  writeSyncAuditLog,
 } from "./lib/daily-sync-db";
 import {
   fetchCursorSnapshot,
@@ -84,13 +85,16 @@ async function syncVendor(
   tenantId: string,
 ): Promise<void> {
   const diffBase = await loadDiffBase(db, vendor);
+  const sourceType = API_VENDORS.includes(vendor) ? "api" as const : "scraper" as const;
+  const seatConfig = VENDOR_SEAT_COSTS[vendor] ?? null;
+  let seatRecordsWritten = 0;
+  let recordsWritten = 0;
 
   // Write seat costs on first sync of each calendar month (before early return)
-  const seatConfig = VENDOR_SEAT_COSTS[vendor];
   if (seatConfig?.defaultCents) {
-    const seatCount = await writeSeatCostRecords(db, tenantId, vendor, seatConfig.defaultCents, snapshot.members, { dryRun });
-    if (seatCount > 0) {
-      console.log(`  🪑 ${dryRun ? "Would write" : "Wrote"} ${seatCount} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
+    seatRecordsWritten = await writeSeatCostRecords(db, tenantId, vendor, seatConfig.defaultCents, snapshot.members, { dryRun });
+    if (seatRecordsWritten > 0) {
+      console.log(`  🪑 ${dryRun ? "Would write" : "Wrote"} ${seatRecordsWritten} seat records ($${(seatConfig.defaultCents / 100).toFixed(2)}/seat)`);
     }
   }
 
@@ -99,6 +103,7 @@ async function syncVendor(
     console.log(`  💾 First run — saving baseline snapshot (${snapshot.members.length} members)`);
     if (!dryRun) {
       await saveSnapshot(db, vendor, snapshot);
+      await writeSyncAuditLog(db, { tenantId, vendor, sourceType, snapshot, seatConfig, diffResult: null, recordsWritten: 0, seatRecordsWritten, dryRun });
     }
     console.log(`  ℹ️  Run again later to capture daily deltas\n`);
     return;
@@ -106,7 +111,6 @@ async function syncVendor(
 
   // Compute diff
   const diff = computeDiff(snapshot, diffBase);
-  const sourceType = API_VENDORS.includes(vendor) ? "api" as const : "scraper" as const;
   const records = deltasToRecords(vendor, diff.deltas, diff.newMembers, sourceType);
 
   // Log deltas
@@ -126,15 +130,21 @@ async function syncVendor(
 
   // Write daily records
   if (records.length > 0) {
-    const count = await writeDailyRecords(db, tenantId, records, { dryRun });
-    console.log(`  📝 ${dryRun ? "Would write" : "Wrote"} ${count} daily records`);
+    recordsWritten = await writeDailyRecords(db, tenantId, records, { dryRun });
+    console.log(`  📝 ${dryRun ? "Would write" : "Wrote"} ${recordsWritten} daily records`);
   }
 
   // Update snapshot
   if (!dryRun) {
     await saveSnapshot(db, vendor, snapshot);
   }
-  console.log(`  💾 ${dryRun ? "Would save" : "Saved"} snapshot\n`);
+  console.log(`  💾 ${dryRun ? "Would save" : "Saved"} snapshot`);
+
+  // Audit log
+  if (!dryRun) {
+    await writeSyncAuditLog(db, { tenantId, vendor, sourceType, snapshot, seatConfig, diffResult: diff, recordsWritten, seatRecordsWritten, dryRun });
+  }
+  console.log(`  📋 ${dryRun ? "Would write" : "Wrote"} audit log entry\n`);
 }
 
 async function main() {

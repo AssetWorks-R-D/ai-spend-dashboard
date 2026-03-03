@@ -13,9 +13,11 @@ import {
   memberIdentities,
   members,
   tenants,
+  syncAuditLog,
 } from "../../src/lib/db/schema";
 import type { ApiVendor, SourceType, Confidence } from "../../src/types/index";
-import type { MemberDelta, MemberSnapshot } from "./snapshot-store";
+import type { MemberDelta, MemberSnapshot, VendorSnapshot, SnapshotDiff } from "./snapshot-store";
+import type { SeatCostConfig } from "./vendor-fetchers";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -151,8 +153,9 @@ export async function writeDailyRecords(
 
 /**
  * Write monthly seat-cost records for a vendor.
- * Called on the first sync of each calendar month.
- * Only writes seats for members present in the snapshot (actual vendor users).
+ * Only writes seats for members present in the snapshot (actual vendor users)
+ * who don't already have a seat record this month. This handles mid-month
+ * member additions: existing members are skipped, new ones get a seat record.
  * Each member gets one record with periodStart = periodEnd = 1st of month.
  */
 export async function writeSeatCostRecords(
@@ -168,9 +171,12 @@ export async function writeSeatCostRecords(
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-  // Check if seat records already exist for this month + vendor
+  // Find which members already have seat records this month
   const existing = await db
-    .select({ id: usageRecords.id })
+    .select({
+      memberId: usageRecords.memberId,
+      vendorEmail: usageRecords.vendorEmail,
+    })
     .from(usageRecords)
     .where(
       and(
@@ -181,18 +187,31 @@ export async function writeSeatCostRecords(
       ),
     );
 
-  if (existing.length > 0) {
-    return 0; // Already written this month
-  }
+  const existingMemberIds = new Set(
+    existing.map((r) => r.memberId).filter((id): id is string => id !== null),
+  );
+  const existingEmails = new Set(
+    existing.map((r) => r.vendorEmail?.toLowerCase()).filter((e): e is string => e !== undefined),
+  );
 
-  if (options.dryRun) return snapshotMembers.length;
-
+  // Resolve member IDs and filter to only members without a seat record
   const lookup = await buildMemberLookup(db, tenantId, vendor);
 
-  let written = 0;
+  const toWrite: Array<{ sm: MemberSnapshot; memberId: string | null }> = [];
   for (const sm of snapshotMembers) {
     const memberId = lookup.resolve(sm.vendorEmail, sm.vendorUsername);
+    const email = sm.vendorEmail?.toLowerCase();
 
+    if (memberId && existingMemberIds.has(memberId)) continue;
+    if (email && existingEmails.has(email)) continue;
+
+    toWrite.push({ sm, memberId });
+  }
+
+  if (toWrite.length === 0) return 0;
+  if (options.dryRun) return toWrite.length;
+
+  for (const { sm, memberId } of toWrite) {
     await db.insert(usageRecords).values({
       id: crypto.randomUUID(),
       tenantId,
@@ -207,10 +226,9 @@ export async function writeSeatCostRecords(
       vendorEmail: sm.vendorEmail,
       vendorUsername: sm.vendorUsername,
     });
-    written++;
   }
 
-  return written;
+  return toWrite.length;
 }
 
 /**
@@ -252,4 +270,36 @@ export function deltasToRecords(
   }
 
   return records;
+}
+
+// ─── Sync Audit Log ─────────────────────────────────────────
+
+export interface SyncAuditEntry {
+  tenantId: string;
+  vendor: ApiVendor;
+  sourceType: SourceType;
+  snapshot: VendorSnapshot;
+  seatConfig: SeatCostConfig | null;
+  diffResult: SnapshotDiff | null;
+  recordsWritten: number;
+  seatRecordsWritten: number;
+  dryRun: boolean;
+}
+
+export async function writeSyncAuditLog(
+  db: NeonHttpDatabase,
+  entry: SyncAuditEntry,
+): Promise<void> {
+  await db.insert(syncAuditLog).values({
+    id: crypto.randomUUID(),
+    tenantId: entry.tenantId,
+    vendor: entry.vendor,
+    sourceType: entry.sourceType,
+    snapshot: entry.snapshot,
+    seatConfig: entry.seatConfig,
+    diffResult: entry.diffResult,
+    recordsWritten: entry.recordsWritten,
+    seatRecordsWritten: entry.seatRecordsWritten,
+    dryRun: entry.dryRun,
+  });
 }

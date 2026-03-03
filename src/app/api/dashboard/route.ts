@@ -4,8 +4,8 @@ import { getMemberAggregates, getTeamTotals, getVendorSummaries } from "@/lib/db
 import { getTenantBadgeCounts } from "@/lib/db/queries/badges";
 import { periodBounds, currentPeriodKey } from "@/lib/utils/date-ranges";
 import { db } from "@/lib/db";
-import { tenants } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { tenants, usageRecords } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 /** GET /api/dashboard?period=2026-02 — aggregated dashboard data */
 export async function GET(request: NextRequest) {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const { start, end } = periodBounds(period);
   const tenantId = session.user.tenantId;
 
-  const [teamTotals, memberCards, vendorSummaries, badgeCounts, tenant] = await Promise.all([
+  const [teamTotals, memberCards, vendorSummaries, badgeCounts, tenant, availablePeriods] = await Promise.all([
     getTeamTotals(tenantId, start, end),
     getMemberAggregates(tenantId, start, end),
     getVendorSummaries(tenantId, start, end),
@@ -32,6 +32,14 @@ export async function GET(request: NextRequest) {
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .then((rows) => rows[0]),
+    db
+      .selectDistinct({
+        month: sql<string>`to_char(${usageRecords.periodStart} AT TIME ZONE 'UTC', 'YYYY-MM')`,
+      })
+      .from(usageRecords)
+      .where(eq(usageRecords.tenantId, tenantId))
+      .orderBy(sql`1`)
+      .then((rows) => rows.map((r) => r.month)),
   ]);
 
   return Response.json({
@@ -45,6 +53,7 @@ export async function GET(request: NextRequest) {
       vendorSummaries,
       period,
       displayMode: tenant?.leaderboardDisplayMode || "named",
+      availablePeriods,
     },
   });
 }

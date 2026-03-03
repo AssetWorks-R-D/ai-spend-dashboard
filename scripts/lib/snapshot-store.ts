@@ -188,9 +188,12 @@ export function computeDiff(
     // Skip zero deltas (no change since last sync)
     if (deltaSpendCents === 0) continue;
 
+    // If current tracks tokens, compute delta (treat null previous as 0).
+    // This handles zeroed baselines and first-run scenarios where previous
+    // snapshot has tokens: null but current has estimated tokens.
     const deltaTokens =
-      curr.tokens !== null && prev.tokens !== null
-        ? (billingReset ? curr.tokens : curr.tokens - prev.tokens)
+      curr.tokens !== null
+        ? (billingReset ? curr.tokens : curr.tokens - (prev.tokens ?? 0))
         : null;
 
     deltas.push({
