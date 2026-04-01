@@ -1,0 +1,59 @@
+name: Daily Vendor Sync
+
+on:
+  schedule:
+    # 6:00 AM UTC daily — after vendors have settled overnight usage
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    # Manual trigger from GitHub Actions UI (useful for catch-up runs)
+    inputs:
+      dry_run:
+        description: "Dry run (no DB writes)"
+        type: boolean
+        default: false
+      vendor:
+        description: "Sync a single vendor (leave blank for all)"
+        type: choice
+        options:
+          - ""
+          - cursor
+          - claude
+          - openai
+        default: ""
+
+jobs:
+  sync:
+    name: Sync API vendors
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run sync
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CREDENTIAL_ENCRYPTION_KEY: ${{ secrets.CREDENTIAL_ENCRYPTION_KEY }}
+        run: |
+          ARGS="--api-only"
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          if [ -n "${{ inputs.vendor }}" ]; then
+            ARGS="$ARGS --vendor ${{ inputs.vendor }}"
+          fi
+
+          echo "Running: npx tsx scripts/sync-all.ts $ARGS"
+          npx tsx scripts/sync-all.ts $ARGS
